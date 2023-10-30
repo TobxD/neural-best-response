@@ -8,15 +8,10 @@ from game_utils import all_game_states
 
 
 class PolicyNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, layers, use_learned_input=False):
+    def __init__(self, input_dim, output_dim, layers):
         super(PolicyNetwork, self).__init__()
 
-        self.use_learned_input = use_learned_input
         self.layers = nn.ModuleList()
-
-        # If learned parameters are used as input, initialize them
-        if self.use_learned_input:
-            self.learned_input = nn.Parameter(torch.randn(input_dim))
 
         prev_dim = input_dim
         for layer_dim in layers:
@@ -33,22 +28,20 @@ class PolicyNetwork(nn.Module):
         init.uniform_(self.output_layer.bias)
 
     def forward(self, x=None):
-        print(self.use_learned_input, self.layers)
-        if self.use_learned_input:
-            x = self.learned_input
-
         for layer in self.layers:
             x = F.relu(layer(x))
 
         return self.output_layer(x)
 
 
-def create_policy_net(config):
-    return PolicyNetwork(**config)
+def create_policy_net(game, config):
+    input_dim = game.information_state_tensor_shape()[0]
+    output_dim = game.num_distinct_actions()
+    return PolicyNetwork(input_dim=input_dim, output_dim=output_dim, **config)
 
 
 def get_nn_probs(nn_policy, state, player):
-    information_state_tensor = torch.FloatTensor(state.observation_tensor(player))
+    information_state_tensor = torch.FloatTensor(state.information_state_tensor(player))
     logits = nn_policy(information_state_tensor)
     possible_actions = state.legal_actions(player)
 

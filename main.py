@@ -95,13 +95,13 @@ def policy_value(game, policy):
 
 
 def main(nn_config):
-    # game = create_random_normal_game(3)
-    game = pyspiel.load_game("kuhn_poker")
+    game = create_random_normal_game(3)
+    # game = pyspiel.load_game("kuhn_poker")
     print("nash", nash_eq_policy_and_value(game))
     print(game)
     np.random.seed(2)
     nn_player = 0
-    nn_policy = neural_policies.create_policy_net(nn_config)
+    nn_policy = neural_policies.create_policy_net(game, nn_config)
     nn_tab_policy = neural_policies.nn_to_tabular_policy(game, nn_policy, nn_player)
     print("nn tab policy", nn_tab_policy.action_probability_array)
     br = compute_best_response_tabular_policy(game, nn_tab_policy, 1 - nn_player)
