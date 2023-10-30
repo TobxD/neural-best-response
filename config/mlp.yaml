@@ -1,0 +1,5 @@
+input_dim: 1
+output_dim: 3
+layers: [2]
+# use_learned_input: True
+use_learned_input: False
