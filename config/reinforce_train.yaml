@@ -1,2 +1,3 @@
 learning_rate: 0.1
 weight_decay: 0.000001
+num_episodes: 1000
