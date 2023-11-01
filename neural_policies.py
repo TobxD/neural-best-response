@@ -70,6 +70,30 @@ class HyperNetworkActionOutput(nn.Module):
         return self._model(x)
 
 
+class HyperNetworkNNOutput(nn.Module):
+    def __init__(self, input_nn, output_nn, layers):
+        super(HyperNetworkNNOutput, self).__init__()
+        input_dim = input_nn.num_weight_values()
+        output_dim = output_nn.num_weight_values()
+        self._model = PolicyNetwork(input_dim, output_dim, layers)
+        self._output_model_clone = output_nn.clone()
+
+    def model_output(self, in_model):
+        model_weights = in_model.get_weights()
+        x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
+        return self._model(x)
+
+    def forward(self, in_model, x):
+        """
+        forward pass of the hypernetwork and the output network
+        """
+        out_nn_weights = self.model_output(in_model)
+        out_nn = self._output_model_clone.clone()
+        out_nn.set_weights(out_nn_weights)
+        action_logits = out_nn(x)
+        return action_logits
+
+
 def create_policy_net(game, config):
     input_dim = game.information_state_tensor_shape()[0]
     output_dim = game.num_distinct_actions()
@@ -83,6 +107,13 @@ def create_hypernet_actionoutput(game, input_net, config):
     net = HyperNetworkActionOutput(
         input_net, input_dim=input_dim, output_dim=output_dim, **config
     )
+    return net
+
+
+def create_hypernet_nn_output(game, input_net, config, output_net=None):
+    if output_net is None:
+        output_net = input_net
+    net = HyperNetworkNNOutput(input_net, output_net**config)
     return net
 
 
