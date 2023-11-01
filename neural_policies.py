@@ -23,8 +23,10 @@ class PolicyNetwork(nn.Module):
             self.layers.append(linear_layer)
 
     def forward(self, x=None):
-        for layer in self.layers:
-            x = F.relu(layer(x))
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+            if i < len(self.layers) - 1:
+                F.relu(x)
         return x
 
     def num_weight_values(self):
