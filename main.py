@@ -83,7 +83,7 @@ def train_hypernet_nn_output(game, nn_config, nn_player, nn_policy):
     return hypernet
 
 
-def hypernet_actionoutput_br(game, hypernet, nn_player, nn_policy, nn_tab_policy):
+def hypernet_br(game, hypernet, nn_player, nn_policy, nn_tab_policy):
     neural_br_tab_policy = neural_policies.nn_to_tabular_policy(
         game, hypernet, 1 - nn_player, input_net=nn_policy
     )
@@ -100,7 +100,7 @@ def hypernet_actionoutput_br(game, hypernet, nn_player, nn_policy, nn_tab_policy
 
 
 def main(game, nn_config, reinforce_config):
-    # print("nash", nash_equilibrium_policy_and_value(game))
+    print("nash", nash_equilibrium_policy_and_value(game))
 
     nn_player = 0
     nn_policy = neural_policies.create_policy_net(game, nn_config)
@@ -108,7 +108,7 @@ def main(game, nn_config, reinforce_config):
     print("nn tab policy", nn_tab_policy.action_probability_array)
 
     # hypernet = train_hypernet_actionoutput(game, nn_config, nn_player, nn_policy)
-    hypernet_nn = train_hypernet_actionoutput(game, nn_config, nn_player, nn_policy)
+    hypernet_nn = train_hypernet_nn_output(game, nn_config, nn_player, nn_policy)
 
     for i in range(20):
         print(f"==== eval game {i} ====")
@@ -118,7 +118,7 @@ def main(game, nn_config, reinforce_config):
         policy_gradient_br(
             game, nn_config, reinforce_config, nn_player, nn_policy, nn_tab_policy
         )
-        hypernet_actionoutput_br(game, hypernet_nn, nn_player, nn_policy, nn_tab_policy)
+        hypernet_br(game, hypernet_nn, nn_player, nn_policy, nn_tab_policy)
 
 
 def create_game(args):

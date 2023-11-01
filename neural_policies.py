@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 from open_spiel.python import policy as policy_module
+import copy
 
 from game_utils import all_game_states
 
@@ -76,20 +77,20 @@ class HyperNetworkNNOutput(nn.Module):
         input_dim = input_nn.num_weight_values()
         output_dim = output_nn.num_weight_values()
         self._model = PolicyNetwork(input_dim, output_dim, layers)
-        self._output_model_clone = output_nn.clone()
+        self._output_model_clone = copy.deepcopy(output_nn)
 
     def model_output(self, in_model):
         model_weights = in_model.get_weights()
-        x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
-        return self._model(x)
+        out_nn_weights = self._model(model_weights.detach())
+        out_nn = copy.deepcopy(self._output_model_clone)
+        out_nn.set_weights(out_nn_weights)
+        return out_nn
 
     def forward(self, in_model, x):
         """
-        forward pass of the hypernetwork and the output network
+        forward pass of both the hypernetwork and the output network
         """
-        out_nn_weights = self.model_output(in_model)
-        out_nn = self._output_model_clone.clone()
-        out_nn.set_weights(out_nn_weights)
+        out_nn = self.model_output(in_model)
         action_logits = out_nn(x)
         return action_logits
 
@@ -113,7 +114,7 @@ def create_hypernet_actionoutput(game, input_net, config):
 def create_hypernet_nn_output(game, input_net, config, output_net=None):
     if output_net is None:
         output_net = input_net
-    net = HyperNetworkNNOutput(input_net, output_net**config)
+    net = HyperNetworkNNOutput(input_net, output_net, **config)
     return net
 
 
@@ -144,7 +145,10 @@ def nn_to_tabular_policy(game, nn_policy, player, input_net=None):
             continue
         info_sets_covered.add(info_set_str)
 
-        if type(nn_policy) == HyperNetworkActionOutput:
+        if (
+            type(nn_policy) == HyperNetworkActionOutput
+            or type(nn_policy) == HyperNetworkNNOutput
+        ):
             action_probabilities = (
                 get_hypernet_probs(nn_policy, input_net, state, player).detach().numpy()
             )
