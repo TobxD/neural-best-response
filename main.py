@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pyspiel
 import yaml
@@ -48,13 +49,11 @@ def policy_gradient_br(
     print("value of nn br policy", policy_value(game, combined_policy))
 
 
-def train_hypernet_actionoutput(game, nn_config, nn_player, nn_policy):
-    hypernet_config = yaml.safe_load(
-        open("code/config/hypernet_actionoutput.yaml", "r")
-    )
-    train_config = yaml.safe_load(
-        open("code/config/hypernet_reinforce_train.yaml", "r")
-    )
+def train_hypernet_actionoutput(
+    game, nn_config, nn_player, nn_policy, hypernet_config, train_config
+):
+    hypernet_config = yaml.safe_load(open(hypernet_config, "r"))
+    train_config = yaml.safe_load(open(train_config, "r"))
 
     hypernet = neural_policies.create_hypernet_actionoutput(
         game, nn_policy, hypernet_config
@@ -64,16 +63,14 @@ def train_hypernet_actionoutput(game, nn_config, nn_player, nn_policy):
     return hypernet
 
 
-def train_hypernet_nn_output(game, nn_config, nn_player, nn_policy):
+def train_hypernet_nn_output(
+    game, nn_config, nn_player, nn_policy, hypernet_config, train_config
+):
     """
     TODO we can optimize this code if we don't use the forward() but instead use the model_output() function
     """
-    hypernet_config = yaml.safe_load(
-        open("code/config/hypernet_actionoutput.yaml", "r")
-    )
-    train_config = yaml.safe_load(
-        open("code/config/hypernet_reinforce_train.yaml", "r")
-    )
+    hypernet_config = yaml.safe_load(open(hypernet_config, "r"))
+    train_config = yaml.safe_load(open(train_config, "r"))
 
     hypernet = neural_policies.create_hypernet_nn_output(
         game, nn_policy, hypernet_config, output_net=nn_policy
@@ -99,7 +96,7 @@ def hypernet_br(game, hypernet, nn_player, nn_policy, nn_tab_policy):
     print("value of hypernet br policy", policy_value(game, combined_policy))
 
 
-def main(game, nn_config, reinforce_config):
+def main(args, game, nn_config, reinforce_config):
     print("nash", nash_equilibrium_policy_and_value(game))
 
     nn_player = 0
@@ -107,8 +104,22 @@ def main(game, nn_config, reinforce_config):
     nn_tab_policy = neural_policies.nn_to_tabular_policy(game, nn_policy, nn_player)
     print("nn tab policy", nn_tab_policy.action_probability_array)
 
-    # hypernet = train_hypernet_actionoutput(game, nn_config, nn_player, nn_policy)
-    hypernet_nn = train_hypernet_nn_output(game, nn_config, nn_player, nn_policy)
+    hypernet_nn = train_hypernet_actionoutput(
+        game,
+        nn_config,
+        nn_player,
+        nn_policy,
+        hypernet_config=args.hypernet_config,
+        train_config=args.hypernet_train_config,
+    )
+    # hypernet_nn = train_hypernet_nn_output(
+    #     game,
+    #     nn_config,
+    #     nn_player,
+    #     nn_policy,
+    #     hypernet_config=args.hypernet_config,
+    #     train_config=args.hypernet_train_config,
+    # )
 
     for i in range(20):
         print(f"==== eval game {i} ====")
@@ -132,9 +143,15 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--nn-config", type=str, default="code/config/mlp.yaml")
+    parser.add_argument("--nn-config", type=str, default="config/mlp.yaml")
     parser.add_argument(
-        "--reinforce-config", type=str, default="code/config/reinforce_train.yaml"
+        "--reinforce-config", type=str, default="config/reinforce_train.yaml"
+    )
+    parser.add_argument("--hypernet-config", type=str, default="config/hypernet.yaml")
+    parser.add_argument(
+        "--hypernet-train-config",
+        type=str,
+        default="config/hypernet_reinforce_train.yaml",
     )
     # only those games have been tested so far
     parser.add_argument(
@@ -150,7 +167,7 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    torch.autograd.set_detect_anomaly(True)
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     args = parse_args()
     np.random.seed(args.seed)
@@ -158,4 +175,4 @@ if __name__ == "__main__":
     game = create_game(args)
     nn_config = yaml.safe_load(open(args.nn_config, "r"))
     reinforce_config = yaml.safe_load(open(args.reinforce_config, "r"))
-    main(game, nn_config, reinforce_config)
+    main(args, game, nn_config, reinforce_config)
