@@ -2,6 +2,7 @@ import torch
 import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
+import copy
 
 from neural_policies import create_policy_net, get_hypernet_probs, get_nn_probs
 
@@ -80,6 +81,14 @@ class PolicyGradientHypernetTrainer:
             weight_decay=train_params["weight_decay"],
         )
         self.num_episodes = train_params["num_episodes"]
+        self.epsilon = train_params["epsilon"]
+
+    def epsilon_random(self, probs, state, cur_player):
+        uniform = torch.tensor(state.legal_actions_mask(cur_player))
+        uniform = uniform / uniform.sum()
+        res = (1 - self.epsilon) * probs + uniform * self.epsilon
+        assert abs(res.sum() - 1.0) < 1e-6
+        return res
 
     def train_best_response(self, opponent_config, br_player_id):
         for episode in tqdm(range(self.num_episodes)):
@@ -97,6 +106,8 @@ class PolicyGradientHypernetTrainer:
             done = False
             reward = 0
             log_probs = []
+            # importance sampling ratios
+            is_ratios = []
 
             while not done:
                 if state.is_chance_node():
@@ -116,6 +127,8 @@ class PolicyGradientHypernetTrainer:
                                 state,
                                 cur_player,
                             )
+                            orig_probs = probs
+                            probs = self.epsilon_random(probs, state, cur_player)
                         else:
                             probs = get_nn_probs(
                                 networks[cur_player], state, cur_player
@@ -123,8 +136,9 @@ class PolicyGradientHypernetTrainer:
                         m = torch.distributions.Categorical(probs)
                         action = m.sample()
                         if cur_player == br_player_id:
-                            log_prob = m.log_prob(action)
+                            log_prob = torch.log(orig_probs[action])
                             log_probs.append(log_prob)
+                            is_ratios.append(orig_probs[action] / probs[action])
                         actions.append(action.item())
 
                 if len(actions) == 1:
@@ -137,9 +151,14 @@ class PolicyGradientHypernetTrainer:
                     reward = state.returns()[br_player_id]
 
             log_probs = torch.stack(log_probs)
+            is_ratios = torch.stack(is_ratios).detach()
 
-            loss = -log_probs * reward
+            loss = -log_probs * reward * is_ratios
             loss = loss.sum()
+
+            # maybe sometimes nan or inf if the action we sampled with epsilon greedy has 0 support in the actual policy
+            if not torch.isfinite(loss):
+                continue
 
             self.optimizer.zero_grad()
             loss.backward()
