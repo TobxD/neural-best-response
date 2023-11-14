@@ -12,22 +12,23 @@ class PolicyNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, layers):
         super(PolicyNetwork, self).__init__()
 
-        self.layers = nn.ModuleList()
-
         layers = [input_dim] + layers + [output_dim]
-        for num_in, num_out in zip(layers[:-1], layers[1:]):
+        layer_combinations = list(zip(layers[:-1], layers[1:]))
+        network_layers = []
+        for i, (num_in, num_out) in enumerate(layer_combinations):
             linear_layer = nn.Linear(num_in, num_out)
-            init.kaiming_normal_(linear_layer.weight, nonlinearity="relu")
+            init.kaiming_normal_(linear_layer.weight, nonlinearity="tanh")
             # we can't use just 0 bias if we have 0 input for NF games
-            init.uniform_(linear_layer.bias)
-            self.layers.append(linear_layer)
+            # init.uniform_(linear_layer.bias)
+            linear_layer.bias.data.fill_(0.01)
+            network_layers.append(linear_layer)
+            if i < len(layer_combinations) - 1:
+                # network_layers.append(nn.ReLU())
+                network_layers.append(nn.Tanh())
+        self.network = nn.Sequential(*network_layers)
 
     def forward(self, x=None):
-        for i, layer in enumerate(self.layers):
-            x = layer(x)
-            if i < len(self.layers) - 1:
-                F.relu(x)
-        return x
+        return self.network(x)
 
     def num_weight_values(self):
         return sum([layer.weight.numel() + layer.bias.numel() for layer in self.layers])

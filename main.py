@@ -104,12 +104,6 @@ def main(args, game, nn_config, reinforce_config):
     nn_tab_policy = neural_policies.nn_to_tabular_policy(game, nn_policy, nn_player)
     print("nn tab policy", nn_tab_policy.action_probability_array)
 
-    # get the nn weights, in this setting it is a 1-d tensor
-    for name, param in nn_policy.named_parameters():
-        if 'weight' in name:  
-            nn_weights = param.data
-
-
     hypernet_nn = train_hypernet_actionoutput(
         game,
         nn_config,
