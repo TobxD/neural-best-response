@@ -1,1 +1,2 @@
 layers: [30]
+activation: tanh

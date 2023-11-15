@@ -9,22 +9,24 @@ from game_utils import all_game_states
 
 
 class PolicyNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, layers):
+    def __init__(self, input_dim, output_dim, layers, activation):
         super(PolicyNetwork, self).__init__()
+
+        assert activation in ["relu", "tanh"]
+        activation_module = nn.ReLU if activation == "relu" else nn.Tanh
 
         layers = [input_dim] + layers + [output_dim]
         layer_combinations = list(zip(layers[:-1], layers[1:]))
         network_layers = []
         for i, (num_in, num_out) in enumerate(layer_combinations):
             linear_layer = nn.Linear(num_in, num_out)
-            init.kaiming_normal_(linear_layer.weight, nonlinearity="tanh")
+            init.kaiming_normal_(linear_layer.weight, nonlinearity=activation)
             # we can't use just 0 bias if we have 0 input for NF games
             # init.uniform_(linear_layer.bias)
             linear_layer.bias.data.fill_(0.01)
             network_layers.append(linear_layer)
             if i < len(layer_combinations) - 1:
-                # network_layers.append(nn.ReLU())
-                network_layers.append(nn.Tanh())
+                network_layers.append(activation_module())
         self.network = nn.Sequential(*network_layers)
 
     def forward(self, x=None):

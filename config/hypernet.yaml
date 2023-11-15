@@ -1,1 +1,2 @@
 layers: [20, 20, 20]
+activation: relu
