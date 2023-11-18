@@ -139,7 +139,7 @@ class PolicyGradientHypernetTrainer:
                         )
                         log_prob = torch.log(orig_probs[action])
                         log_probs.append(log_prob)
-                        # TODO fix: do for opponent too
+                        # TODO fix: do for opponent too?
                         is_ratios.append(orig_probs[action] / probs[action])
                     actions.append(action.item())
 
@@ -283,6 +283,7 @@ class PolicyGradientHypernetTrainer:
                 batch = replay_buffer[train_player].sample(
                     self.train_params["batch_size"]
                 )
+                loss = []
                 for (
                     state,
                     legal_actions,
@@ -299,12 +300,18 @@ class PolicyGradientHypernetTrainer:
                         information_state_tensor=state,
                         legal_actions_mask=legal_actions,
                     )
-                    loss = -new_probs[action] / orig_prob.detach() * reward
-                    if not torch.isfinite(loss):
-                        continue
-                    optimizers[train_player].zero_grad()
-                    loss.backward()
-                    optimizers[train_player].step()
+                    ratio = new_probs[action] / orig_prob.detach()
+                    loss.append(
+                        -torch.min(
+                            ratio * reward, torch.clip(ratio, 0.95, 1.05) * reward
+                        )
+                    )
+                loss = torch.stack(loss).sum()
+                if not torch.isfinite(loss):
+                    continue
+                optimizers[train_player].zero_grad()
+                loss.backward()
+                optimizers[train_player].step()
 
             # loss = -log_probs * reward * is_ratios
             # loss = loss.sum()

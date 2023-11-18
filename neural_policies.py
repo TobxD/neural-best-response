@@ -21,9 +21,11 @@ class PolicyNetwork(nn.Module):
         for i, (num_in, num_out) in enumerate(layer_combinations):
             linear_layer = nn.Linear(num_in, num_out)
             init.kaiming_normal_(linear_layer.weight, nonlinearity=activation)
-            # we can't use just 0 bias if we have 0 input for NF games
-            init.uniform_(linear_layer.bias)
-            # linear_layer.bias.data.fill_(0.01)
+            if activation == "relu":
+                linear_layer.bias.data.fill_(0.01)
+            else:
+                # we can't use just 0 bias if we have 0 input for NF games
+                init.uniform_(linear_layer.bias)
             network_layers.append(linear_layer)
             if i < len(layer_combinations) - 1:
                 network_layers.append(activation_module())
@@ -52,7 +54,8 @@ class PolicyNetwork(nn.Module):
         cnt = 0
         for param in self.parameters():
             num_weights = param.numel()
-            param.data = weights[cnt : cnt + num_weights].view(param.shape)
+            param.requires_grad = False
+            param.copy_(weights[cnt : cnt + num_weights].view(param.shape))
             cnt += num_weights
 
 
