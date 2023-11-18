@@ -22,14 +22,14 @@ def sample_strategy(game, player):
     info_sets = set()
     strategy = []
     for state in states:
-        if state.information_state_string() in info_sets:
+        if state.information_state_string(player) in info_sets:
             continue
-        info_sets.add(state.information_state_string())
-        action_mask = np.array(state.legal_actions_mask(), dtype=bool)
+        info_sets.add(state.information_state_string(player))
+        action_mask = np.array(state.legal_actions_mask(player), dtype=bool)
         probabilities = np.random.dirichlet(alpha * np.ones(action_mask.sum()))
         action_probs = np.zeros(action_mask.shape)
         action_probs[action_mask] = probabilities
-        strategy.append((state.information_state_tensor(), action_probs))
+        strategy.append((state.information_state_tensor(player), action_probs))
     return strategy
 
 

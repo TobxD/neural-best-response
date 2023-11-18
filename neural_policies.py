@@ -22,8 +22,8 @@ class PolicyNetwork(nn.Module):
             linear_layer = nn.Linear(num_in, num_out)
             init.kaiming_normal_(linear_layer.weight, nonlinearity=activation)
             # we can't use just 0 bias if we have 0 input for NF games
-            # init.uniform_(linear_layer.bias)
-            linear_layer.bias.data.fill_(0.01)
+            init.uniform_(linear_layer.bias)
+            # linear_layer.bias.data.fill_(0.01)
             network_layers.append(linear_layer)
             if i < len(layer_combinations) - 1:
                 network_layers.append(activation_module())
@@ -33,18 +33,15 @@ class PolicyNetwork(nn.Module):
         return self.network(x)
 
     def num_weight_values(self):
-        return sum([layer.weight.numel() + layer.bias.numel() for layer in self.layers])
+        return sum([param.numel() for param in self.parameters()])
 
     def get_weights(self):
         weights = torch.zeros(self.num_weight_values())
         cnt = 0
-        for layer in self.layers:
-            num_weights = layer.weight.numel()
-            weights[cnt : cnt + num_weights] = layer.weight.data.view(-1)
+        for param in self.parameters():
+            num_weights = param.numel()
+            weights[cnt : cnt + num_weights] = param.data.view(-1)
             cnt += num_weights
-            num_bias = layer.bias.numel()
-            weights[cnt : cnt + num_bias] = layer.bias.data.view(-1)
-            cnt += num_bias
         return weights.detach()
 
     def set_weights(self, weights):
@@ -53,22 +50,17 @@ class PolicyNetwork(nn.Module):
         """
         assert weights.shape == (self.num_weight_values(),)
         cnt = 0
-        for layer in self.layers:
-            num_weights = layer.weight.numel()
-            layer.weight.data = weights[cnt : cnt + num_weights].view(
-                layer.weight.shape
-            )
+        for param in self.parameters():
+            num_weights = param.numel()
+            param.data = weights[cnt : cnt + num_weights].view(param.shape)
             cnt += num_weights
-            num_bias = layer.bias.numel()
-            layer.bias.data = weights[cnt : cnt + num_bias].view(layer.bias.shape)
-            cnt += num_bias
 
 
 class HyperNetworkActionOutput(nn.Module):
-    def __init__(self, input_nn, input_dim, output_dim, layers):
+    def __init__(self, input_nn, input_dim, output_dim, **kwargs):
         super(HyperNetworkActionOutput, self).__init__()
         input_dim += input_nn.num_weight_values()
-        self._model = PolicyNetwork(input_dim, output_dim, layers)
+        self._model = PolicyNetwork(input_dim, output_dim, **kwargs)
 
     def forward(self, model, x):
         model_weights = model.get_weights()
@@ -77,11 +69,11 @@ class HyperNetworkActionOutput(nn.Module):
 
 
 class HyperNetworkNNOutput(nn.Module):
-    def __init__(self, input_nn, output_nn, layers):
+    def __init__(self, input_nn, output_nn, **kwargs):
         super(HyperNetworkNNOutput, self).__init__()
         input_dim = input_nn.num_weight_values()
         output_dim = output_nn.num_weight_values()
-        self._model = PolicyNetwork(input_dim, output_dim, layers)
+        self._model = PolicyNetwork(input_dim, output_dim, **kwargs)
         self._output_model_clone = copy.deepcopy(output_nn)
 
     def model_output(self, in_model):
@@ -132,10 +124,21 @@ def get_nn_probs(nn_policy, state, player):
     return action_probabilities
 
 
-def get_hypernet_probs(hypernet, input_net, state, player):
-    information_state_tensor = torch.FloatTensor(state.information_state_tensor(player))
+def get_hypernet_probs(
+    hypernet,
+    input_net,
+    state,
+    player,
+    information_state_tensor=None,
+    legal_actions_mask=None,
+):
+    if information_state_tensor is None:
+        information_state_tensor = state.information_state_tensor(player)
+    information_state_tensor = torch.FloatTensor(information_state_tensor)
+    if legal_actions_mask is None:
+        legal_actions_mask = state.legal_actions_mask(player)
     logits = hypernet(input_net, information_state_tensor)
-    mask = torch.BoolTensor(state.legal_actions_mask(player))
+    mask = torch.BoolTensor(legal_actions_mask)
     logits = logits.masked_fill(~mask, float("-inf"))
     action_probabilities = F.softmax(logits, dim=-1)
     return action_probabilities

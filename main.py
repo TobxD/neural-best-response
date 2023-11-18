@@ -135,6 +135,14 @@ def main(args, game, nn_config, reinforce_config):
 def create_game(args):
     if args.game == "random":
         return create_random_normal_game(args.num_actions)
+    if args.game == "rps":
+        util = np.array([[0, -1, 1], [1, 0, -1], [-1, 1, 0]])
+        actions_a = ["1-rock", "1-paper", "1-scissors"]
+        actions_b = ["2-rock", "2-paper", "2-scissors"]
+        game = pyspiel.create_matrix_game(
+            "rps", "rock paper scissors", actions_a, actions_b, util, -util
+        )
+        return game
     else:
         return pyspiel.load_game(args.game)
 
@@ -157,7 +165,7 @@ def parse_args():
     parser.add_argument(
         "--game",
         type=str,
-        choices=["random", "kuhn_poker", "leduc_poker"],
+        choices=["random", "kuhn_poker", "leduc_poker", "rps"],
         default="random",
     )
     # this is only for random games (NF)
