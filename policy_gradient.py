@@ -197,12 +197,13 @@ class PolicyGradientHypernetTrainer:
 
     def train_best_response(self, opponent_config, br_player_id):
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
-        input_networks = input_networks[:1]
+        input_networks = input_networks[:5]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         for episode in tqdm(range(self.num_episodes)):
             # opponent_network = create_policy_net(self.game, opponent_config)
-            opponent_network = input_networks[np.random.randint(len(input_networks))]
+            input_net_ind = np.random.randint(len(input_networks))
+            opponent_network = input_networks[input_net_ind]
             networks = (
                 [self.policy_network, opponent_network]
                 if br_player_id == 0
@@ -212,8 +213,9 @@ class PolicyGradientHypernetTrainer:
                 ]
             )
 
-            cnt_per = 1
+            cnt_per = 100
             loss = 0
+            exp_per_state = defaultdict(lambda : [[], []])
             for _ in range(cnt_per):
                 experience, log_probs, reward, is_ratios = self.run_episode(
                     self.game, networks, br_player_id
@@ -225,6 +227,7 @@ class PolicyGradientHypernetTrainer:
                 baseline[dict_key] = base
                 base_val = base[0] / base[1]
                 loss_per_action[dict_key][experience[0][2].item()].append(reward)
+                exp_per_state[dict_key][experience[0][2].item()].append((log_probs, reward))
 
                 # loss = -log_probs * reward * is_ratios
                 new_loss = -log_probs * (reward - base_val)
@@ -242,32 +245,48 @@ class PolicyGradientHypernetTrainer:
             #     print(s, p[0], p[1])
 
             loss *= 0
-            cur_res = []
-            if episode > 1000:
-                for s, p in loss_per_action.items():
-                    # if s[3] < 0.5:
-                    #     continue
-                    r0 = sum(p[0]) / max(1, len(p[0]))
-                    r1 = sum(p[1]) / max(1, len(p[1]))
-                    probs = get_hypernet_probs(
-                        self.policy_network,
-                        opponent_network,
-                        None,
-                        br_player_id,
-                        information_state_tensor=torch.FloatTensor(s),
-                        legal_actions_mask=torch.BoolTensor(2 * [True]),
-                    )
-                    # base = (r0+r1)/2
-                    base = min(r0, r1)
-                    l1 = -torch.log(probs[0]) * (r0-base)
-                    l2 = -torch.log(probs[1]) * (r1-base)
-                    cur_res.append((s, l1.item(), l2.item(), r0-base, r1-base))
-                    loss += l1 + l2
+            for s in exp_per_state:
+                avg_r0 = sum(x[1] for x in exp_per_state[s][0]) / max(1, len(exp_per_state[s][0]))
+                avg_r1 = sum(x[1] for x in exp_per_state[s][1]) / max(1, len(exp_per_state[s][1]))
+                # avg_r0 = sum(loss_per_action[s][0]) / max(1, len(loss_per_action[s][0]))
+                # avg_r1 = sum(loss_per_action[s][1]) / max(1, len(loss_per_action[s][1]))
+                base = min(avg_r0, avg_r1)
+                for a in [0, 1]:
+                    if len(exp_per_state[s][a]) == 0:
+                        continue
+                    log_probs, reward = zip(*exp_per_state[s][a])
+                    log_probs = torch.stack(log_probs).squeeze()
+                    reward = torch.tensor(reward)
+                    loss += (-log_probs * (reward - base)).sum()
+            loss /= cnt_per
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=3.0)
-                self.optimizer.step()
+            # loss *= 0
+            # cur_res = []
+            # if episode > 1000:
+            #     for s, p in loss_per_action.items():
+            #         # if s[3] < 0.5:
+            #         #     continue
+            #         r0 = sum(p[0]) / max(1, len(p[0]))
+            #         r1 = sum(p[1]) / max(1, len(p[1]))
+            #         probs = get_hypernet_probs(
+            #             self.policy_network,
+            #             opponent_network,
+            #             None,
+            #             br_player_id,
+            #             information_state_tensor=torch.FloatTensor(s),
+            #             legal_actions_mask=torch.BoolTensor(2 * [True]),
+            #         )
+            #         # base = (r0+r1)/2
+            #         base = min(r0, r1)
+            #         l1 = -torch.log(probs[0]) * (r0-base)
+            #         l2 = -torch.log(probs[1]) * (r1-base)
+            #         cur_res.append((s, l1.item(), l2.item(), r0-base, r1-base))
+            #         loss += l1 + l2
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=3.0)
+            self.optimizer.step()
             continue
 
     def train_simultaneous_br(self, opponent_config):
