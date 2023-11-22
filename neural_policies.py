@@ -66,6 +66,7 @@ class HyperNetworkActionOutput(nn.Module):
         self._model = PolicyNetwork(input_dim, output_dim, **kwargs)
 
     def forward(self, model, x):
+        x = 2 * x - 1
         model_weights = model.get_weights()
         x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
         return self._model(x)
