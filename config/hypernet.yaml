@@ -1,2 +1,3 @@
-layers: [50]
-activation: tanh
+# layers: [50]
+layers: [200, 200, 200]
+activation: relu

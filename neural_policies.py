@@ -21,7 +21,7 @@ class PolicyNetwork(nn.Module):
         for i, (num_in, num_out) in enumerate(layer_combinations):
             linear_layer = nn.Linear(num_in, num_out)
             init.kaiming_normal_(linear_layer.weight, nonlinearity=activation)
-            if activation == "relu":
+            if False and activation == "relu":
                 linear_layer.bias.data.fill_(0.01)
             else:
                 # we can't use just 0 bias if we have 0 input for NF games
@@ -79,9 +79,19 @@ class HyperNetworkNNOutput(nn.Module):
         self._model = PolicyNetwork(input_dim, output_dim, **kwargs)
         self._output_model_clone = copy.deepcopy(output_nn)
 
-    def model_output(self, in_model):
+    def model_weight_output(self, in_model):
         model_weights = in_model.get_weights()
+        # model_weights[:3] = 0
         out_nn_weights = self._model(model_weights.detach())
+        # out_nn_weights[:3] = 0
+        return out_nn_weights
+
+    def model_output(self, in_model):
+        out_nn_weights = self.model_weight_output(in_model)
+        weight_norm = torch.linalg.norm(out_nn_weights, ord=1)
+        max_norm = out_nn_weights.numel() * 2
+        if weight_norm > max_norm:
+            out_nn_weights = out_nn_weights / weight_norm * max_norm
         out_nn = copy.deepcopy(self._output_model_clone)
         out_nn.set_weights(out_nn_weights)
         return out_nn

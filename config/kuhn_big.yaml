@@ -1,0 +1,2 @@
+layers: [6, 6]
+activation: tanh
