@@ -200,7 +200,7 @@ class PolicyGradientHypernetTrainer:
 
     def train_best_response(self, opponent_config, br_player_id):
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
-        input_networks = input_networks[:100]
+        input_networks = input_networks[:1000]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         for episode in tqdm(range(self.num_episodes)):

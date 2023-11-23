@@ -1,3 +1,4 @@
+from itertools import product
 import numpy as np
 import pyspiel
 from open_spiel.python import policy as policy_module
@@ -88,7 +89,6 @@ def compute_best_response_tabular_policy(
         combined_policy.policy_for_key(s)[br.best_response_action(s)] = 1
     return combined_policy
 
-
 def combine_tabular_policies(
     game, policy_a: policy_module.TabularPolicy, policy_b: policy_module.TabularPolicy
 ):
@@ -109,3 +109,18 @@ def policy_value(game, policy):
         return expected_game_score.policy_value(
             game.new_initial_state(), (policy, policy)
         )
+
+def best_fixed_response_kuhn(game, opponent_policies, br_player_id):
+    br_policies = np.array(list(product([0, 1], repeat=6)))
+    res = {}
+    for br_policy in br_policies:
+        probs = np.concatenate([br_policy[:, None], 1-br_policy[:, None]], axis=-1)
+        tabular_response_policy = policy_module.TabularPolicy(game)
+        tabular_response_policy.action_probability_array[6:] = probs
+        values = []
+        for opponent_policy in opponent_policies:
+            tabular_policies = [tabular_response_policy, opponent_policy] if br_player_id == 0 else [opponent_policy, tabular_response_policy]
+            combined_policy = combine_tabular_policies(game, *tabular_policies)
+            values.append(policy_value(game, combined_policy)[br_player_id])
+        res[tuple(br_policy.tolist())] = sum(values)/len(values)
+    return res
