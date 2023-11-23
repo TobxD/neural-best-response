@@ -181,7 +181,8 @@ class PolicyGradientHypernetTrainer:
             [opponent_tab, tab_br] if opponent_player == 0 else [tab_br, opponent_tab]
         )
         combined_policy = main.combine_tabular_policies(self.game, *policies)
-        print("value of table br policy", main.policy_value(self.game, combined_policy))
+        table_br_value = main.policy_value(self.game, combined_policy)
+        print("value of table br policy", table_br_value)
 
         nn_br = neural_policies.nn_to_tabular_policy(
             self.game, hypernet, hypernet_player, opponent_net
@@ -191,13 +192,15 @@ class PolicyGradientHypernetTrainer:
             [opponent_tab, nn_br] if opponent_player == 0 else [nn_br, opponent_tab]
         )
         combined_policy = main.combine_tabular_policies(self.game, *policies)
+        nn_br_value = main.policy_value(self.game, combined_policy)
         print(
-            "value of hypernet br policy", main.policy_value(self.game, combined_policy)
+            "value of hypernet br policy", nn_br_value
         )
+        return table_br_value[hypernet_player], nn_br_value[hypernet_player]
 
     def train_best_response(self, opponent_config, br_player_id):
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
-        input_networks = input_networks[:5]
+        input_networks = input_networks[:100]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         for episode in tqdm(range(self.num_episodes)):
