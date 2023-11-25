@@ -5,6 +5,9 @@ import numpy as np
 from tqdm import tqdm
 import copy
 from pprint import pprint
+from datetime import datetime
+import sys
+import os
 
 from neural_policies import create_policy_net, get_hypernet_probs, get_nn_probs
 import neural_policies
@@ -320,6 +323,7 @@ class PolicyGradientHypernetTrainer:
         input_networks = input_networks[:100]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
+        filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
         for episode in tqdm(range(self.num_episodes)):
             # opponent_network = create_policy_net(self.game, opponent_config)
             input_net_ind = np.random.randint(len(input_networks))
@@ -370,34 +374,28 @@ class PolicyGradientHypernetTrainer:
                     # loss += (-log_probs * (reward - base)).sum()
             loss /= num_episodes_batch
 
-            # loss *= 0
-            # cur_res = []
-            # if episode > 1000:
-            #     for s, p in loss_per_action.items():
-            #         # if s[3] < 0.5:
-            #         #     continue
-            #         r0 = sum(p[0]) / max(1, len(p[0]))
-            #         r1 = sum(p[1]) / max(1, len(p[1]))
-            #         probs = get_hypernet_probs(
-            #             self.policy_network,
-            #             opponent_network,
-            #             None,
-            #             br_player_id,
-            #             information_state_tensor=torch.FloatTensor(s),
-            #             legal_actions_mask=torch.BoolTensor(2 * [True]),
-            #         )
-            #         # base = (r0+r1)/2
-            #         base = min(r0, r1)
-            #         l1 = -torch.log(probs[0]) * (r0-base)
-            #         l2 = -torch.log(probs[1]) * (r1-base)
-            #         cur_res.append((s, l1.item(), l2.item(), r0-base, r1-base))
-            #         loss += l1 + l2
-
             self.optimizer.zero_grad()
             loss.backward()
             # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=3.0)
             self.optimizer.step()
+            
+
+            """store the eval file with cur time"""
+            if not os.path.exists('trajectory'):
+                os.makedirs('trajectory')
+            with open(filename, 'a') as file:
+                original_stdout = sys.stdout
+                sys.stdout = file
+                print('episode', episode)
+                self.eval_network(
+                    input_networks[np.random.randint(len(input_networks))],
+                    self.policy_network,
+                    br_player_id
+                )
+                sys.stdout = original_stdout
             continue
+            
+            
 
     def train_simultaneous_br(self, opponent_config):
         replay_buffer = [
