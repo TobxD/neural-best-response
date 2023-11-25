@@ -97,6 +97,106 @@ class PolicyGradientHypernetTrainer:
         assert abs(res.sum() - 1.0) < 1e-6
         return res
 
+    def run_k_episodes(self, game, networks, br_player_id, num_episodes):
+        states = [game.new_initial_state() for _ in range(num_episodes)]
+
+        rewards = [None] * num_episodes
+        br_actions = []
+        log_probs = []
+        ind = [[] for _ in range(num_episodes)]
+        info_states = []
+        legal_actions = []
+        all_orig_probs = []
+        # importance sampling ratios
+        is_ratios = []
+
+        to_play = [i for i in range(num_episodes)]
+
+        while True:
+            new_to_play = []
+            current_to_play = []
+            for episode in to_play:
+                state = states[episode]
+                if state.is_terminal():
+                    if rewards[episode] is None:
+                        rewards[episode] = state.returns()[br_player_id]
+                    continue
+                new_to_play.append(episode)
+                if state.is_simultaneous_node() or state.current_player() == br_player_id:
+                    current_to_play.append(episode)
+            to_play = new_to_play
+            if len(to_play) == 0:
+                break
+
+            if len(current_to_play) > 0:
+                cur_input_states = [states[i] for i in current_to_play]
+                nn_probs = get_hypernet_probs(
+                    networks[br_player_id],
+                    networks[1 - br_player_id],
+                    cur_input_states,
+                    br_player_id,
+                )
+
+            curind = 0
+            for episode in to_play:
+                state = states[episode]
+                if state.is_chance_node():
+                    outcomes, probs = zip(*state.chance_outcomes())
+                    actions = [np.random.choice(outcomes, p=probs)]
+                else:
+                    if state.is_simultaneous_node():
+                        players = [0, 1]
+                    else:
+                        players = [state.current_player()]
+                    actions = []
+                    for cur_player in players:
+                        if cur_player == br_player_id:
+                            probs = nn_probs[curind]
+                            curind += 1
+                            orig_probs = probs
+                            probs = self.epsilon_random(probs, state, cur_player)
+                        else:
+                            probs = get_nn_probs(networks[cur_player], state, cur_player)
+                        m = torch.distributions.Categorical(probs)
+                        action = m.sample()
+                        if cur_player == br_player_id:
+                            ind[episode].append(len(log_probs))
+
+                            log_prob = torch.log(orig_probs[action])
+                            log_probs.append(log_prob)
+                            is_ratios.append(orig_probs[action] / probs[action])
+                            br_actions.append(action.item())
+                            info_states.append(state.information_state_tensor(cur_player))
+                            legal_actions.append(state.legal_actions_mask(cur_player))
+                            all_orig_probs.append(orig_probs[action])
+                        actions.append(action.item())
+
+                if len(actions) == 1:
+                    state.apply_action_with_legality_check(actions[0])
+                else:
+                    state.apply_actions_with_legality_checks(actions)
+
+
+        log_probs = torch.stack(log_probs)
+        is_ratios = torch.stack(is_ratios).detach()
+        # is_ratios = 1
+        action_rewards = [None] * len(log_probs)
+        for episode in range(num_episodes):
+            for i in ind[episode]:
+                action_rewards[i] = rewards[episode]
+        action_rewards = torch.tensor(action_rewards)
+
+        return {
+            "info_states": info_states,
+            "legal_actions": legal_actions,
+            "actions": br_actions,
+            "log_probs": log_probs,
+            "rewards": action_rewards,
+            "is_ratios": is_ratios,
+            "orig_probs": all_orig_probs,
+            "ind": ind,
+        }
+
     def run_episode(self, game, networks, br_player_id):
         state = game.new_initial_state()
         done = False
@@ -196,11 +296,28 @@ class PolicyGradientHypernetTrainer:
         print(
             "value of hypernet br policy", nn_br_value
         )
-        return table_br_value[hypernet_player], nn_br_value[hypernet_player]
+
+        pure_strat = copy.deepcopy(nn_br)
+        for i in range(len(pure_strat.action_probability_array)):
+            if pure_strat.action_probability_array[i][0] > 0.5:
+                pure_strat.action_probability_array[i][0] = 1
+            else:
+                pure_strat.action_probability_array[i][0] = 0
+            pure_strat.action_probability_array[i][1] = 1 - pure_strat.action_probability_array[i][0]
+        # print(pure_strat.action_probability_array)
+        policies = (
+            [opponent_tab, pure_strat] if opponent_player == 0 else [pure_strat, opponent_tab]
+        )
+        combined_policy = main.combine_tabular_policies(self.game, *policies)
+        nn_pure_br_value = main.policy_value(self.game, combined_policy)
+        print(
+            "value of hypernet br policy", nn_pure_br_value
+        )
+        return table_br_value[hypernet_player], nn_br_value[hypernet_player], nn_pure_br_value[hypernet_player]
 
     def train_best_response(self, opponent_config, br_player_id):
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
-        input_networks = input_networks[:1000]
+        input_networks = input_networks[:100]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         for episode in tqdm(range(self.num_episodes)):
@@ -216,52 +333,42 @@ class PolicyGradientHypernetTrainer:
                 ]
             )
 
-            cnt_per = 100
-            loss = 0
+            num_episodes_batch = 100
             exp_per_state = defaultdict(lambda : [[], []])
-            for _ in range(cnt_per):
-                experience, log_probs, reward, is_ratios = self.run_episode(
-                    self.game, networks, br_player_id
-                )
-
-                dict_key = tuple(experience[0][0])
+            experiences = self.run_k_episodes(self.game, networks, br_player_id, num_episodes_batch)
+            for e in range(len(experiences['rewards'])):
+                dict_key = tuple(experiences["info_states"][e])
                 base = baseline[dict_key]
-                base = (base[0] + reward, base[1] + 1)
+                base = (base[0] + experiences['rewards'][e], base[1] + 1)
                 baseline[dict_key] = base
-                base_val = base[0] / base[1]
-                loss_per_action[dict_key][experience[0][2].item()].append(reward)
-                exp_per_state[dict_key][experience[0][2].item()].append((log_probs, reward))
+                loss_per_action[dict_key][experiences['actions'][e]].append(experiences['rewards'][e])
+                exp_per_state[dict_key][experiences['actions'][e]].append((experiences['log_probs'][e], experiences['rewards'][e]))
 
-                # loss = -log_probs * reward * is_ratios
-                new_loss = -log_probs * (reward - base_val)
-                new_loss = new_loss.sum()
-
-                # maybe sometimes nan or inf if the action we sampled with epsilon greedy has 0 support in the actual policy
-                if not torch.isfinite(new_loss):
-                    continue
-                loss += new_loss
-            loss /= cnt_per
             # out_weights = self.policy_network.model_weight_output(opponent_network)
             # weight_norm = torch.linalg.norm(out_weights, ord=1) * 1e-1
             # loss += weight_norm
             # for s, p in loss_per_action.items():
             #     print(s, p[0], p[1])
 
-            loss *= 0
+            loss = 0
             for s in exp_per_state:
                 avg_r0 = sum(x[1] for x in exp_per_state[s][0]) / max(1, len(exp_per_state[s][0]))
                 avg_r1 = sum(x[1] for x in exp_per_state[s][1]) / max(1, len(exp_per_state[s][1]))
                 # avg_r0 = sum(loss_per_action[s][0]) / max(1, len(loss_per_action[s][0]))
                 # avg_r1 = sum(loss_per_action[s][1]) / max(1, len(loss_per_action[s][1]))
-                base = min(avg_r0, avg_r1)
+                # base = min(avg_r0, avg_r1)
+                base = (avg_r0 + avg_r1) / 2
                 for a in [0, 1]:
                     if len(exp_per_state[s][a]) == 0:
                         continue
                     log_probs, reward = zip(*exp_per_state[s][a])
                     log_probs = torch.stack(log_probs).squeeze()
                     reward = torch.tensor(reward)
-                    loss += (-log_probs * (reward - base)).sum()
-            loss /= cnt_per
+                    # regret matching policy gradient (RMPG)
+                    loss += (-log_probs * torch.clip(reward - base, -1e-9, torch.inf)).sum()
+                    # standard policy gradient (REINFORCE with baseline)
+                    # loss += (-log_probs * (reward - base)).sum()
+            loss /= num_episodes_batch
 
             # loss *= 0
             # cur_res = []

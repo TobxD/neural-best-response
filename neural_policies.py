@@ -68,6 +68,8 @@ class HyperNetworkActionOutput(nn.Module):
     def forward(self, model, x):
         x = 2 * x - 1
         model_weights = model.get_weights()
+        if len(model_weights.shape) < len(x.shape):
+            model_weights = model_weights.repeat(x.shape[0], 1)
         x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
         return self._model(x)
 
@@ -147,10 +149,18 @@ def get_hypernet_probs(
     legal_actions_mask=None,
 ):
     if information_state_tensor is None:
-        information_state_tensor = state.information_state_tensor(player)
+        if isinstance(state, list):
+            information_state_tensor = [s.information_state_tensor(player) for s in state]
+        else:
+            information_state_tensor = state.information_state_tensor(player)
     information_state_tensor = torch.FloatTensor(information_state_tensor)
     if legal_actions_mask is None:
-        legal_actions_mask = state.legal_actions_mask(player)
+        if isinstance(state, list):
+            legal_actions_mask = [
+                s.legal_actions_mask(player) for s in state
+            ]
+        else:
+            legal_actions_mask = state.legal_actions_mask(player)
     logits = hypernet(input_net, information_state_tensor)
     mask = torch.BoolTensor(legal_actions_mask)
     logits = logits.masked_fill(~mask, float("-inf"))
