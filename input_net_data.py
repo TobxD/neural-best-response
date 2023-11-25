@@ -14,7 +14,7 @@ def read_nn(game, path, config):
 def read_all_nn(game, folder_path):
     nn_config = yaml.safe_load(open(os.path.join(folder_path, "mlp_config.yaml"), "r"))
     networks = []
-    for file in os.listdir(folder_path):
+    for file in sorted(os.listdir(folder_path)):
         if file.endswith(".pkl"):
             networks.append(read_nn(game, os.path.join(folder_path, file), nn_config))
     return networks

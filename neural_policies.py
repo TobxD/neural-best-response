@@ -147,6 +147,7 @@ def get_hypernet_probs(
     player,
     information_state_tensor=None,
     legal_actions_mask=None,
+    softmax_temp=1,
 ):
     if information_state_tensor is None:
         if isinstance(state, list):
@@ -164,6 +165,7 @@ def get_hypernet_probs(
     logits = hypernet(input_net, information_state_tensor)
     mask = torch.BoolTensor(legal_actions_mask)
     logits = logits.masked_fill(~mask, float("-inf"))
+    logits *= 1/softmax_temp
     action_probabilities = F.softmax(logits, dim=-1)
     return action_probabilities
 

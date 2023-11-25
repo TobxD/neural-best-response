@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
 def extract_values(filename):
     with open(filename, 'r') as file:
@@ -17,12 +18,24 @@ def extract_values(filename):
 
     return episode_values
 
+def smooth_list(values, window_size):
+    smoothed_values = np.convolve(np.array(values), np.ones(window_size)/window_size, mode='valid')
+    return smoothed_values
+
+
 def plot_traj_values(filename):
     values = extract_values(filename)
     episodes = list(values.keys())
+    assert list(sorted(episodes)) == episodes
+    smooth_window = 10000
     value_1 = [v[0][0] for v in values.values()]  #
+    value_1 = smooth_list(value_1, smooth_window)
     value_2 = [v[1][0] for v in values.values()]  #
+    value_2 = smooth_list(value_2, smooth_window)
     value_3 = [v[2][0] for v in values.values()]  #
+    value_3 = smooth_list(value_3, smooth_window)
+    episodes = episodes[smooth_window-1:]
+    print(len(episodes), len(value_1), len(value_2), len(value_3))
 
     plt.figure(figsize=(10, 6))
     plt.plot(episodes, value_1, label='Value of Table BR Policy')

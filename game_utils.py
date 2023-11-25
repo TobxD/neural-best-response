@@ -112,11 +112,15 @@ def policy_value(game, policy):
 
 def best_fixed_response_kuhn(game, opponent_policies, br_player_id):
     br_policies = np.array(list(product([0, 1], repeat=6)))
+    # br_policies = np.array([[0, 0, 0, 0, 0, 1]])
     res = {}
     for br_policy in br_policies:
         probs = np.concatenate([br_policy[:, None], 1-br_policy[:, None]], axis=-1)
         tabular_response_policy = policy_module.TabularPolicy(game)
-        tabular_response_policy.action_probability_array[6:] = probs
+        if br_player_id == 0:
+            tabular_response_policy.action_probability_array[:6] = probs
+        else:
+            tabular_response_policy.action_probability_array[6:] = probs
         values = []
         for opponent_policy in opponent_policies:
             tabular_policies = [tabular_response_policy, opponent_policy] if br_player_id == 0 else [opponent_policy, tabular_response_policy]

@@ -100,7 +100,7 @@ class PolicyGradientHypernetTrainer:
         assert abs(res.sum() - 1.0) < 1e-6
         return res
 
-    def run_k_episodes(self, game, networks, br_player_id, num_episodes):
+    def run_k_episodes(self, game, networks, br_player_id, num_episodes, softmax_temp=1):
         states = [game.new_initial_state() for _ in range(num_episodes)]
 
         rewards = [None] * num_episodes
@@ -138,6 +138,7 @@ class PolicyGradientHypernetTrainer:
                     networks[1 - br_player_id],
                     cur_input_states,
                     br_player_id,
+                    softmax_temp=softmax_temp,
                 )
 
             curind = 0
@@ -320,7 +321,7 @@ class PolicyGradientHypernetTrainer:
 
     def train_best_response(self, opponent_config, br_player_id):
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
-        input_networks = input_networks[:100]
+        input_networks = input_networks[:4500]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'

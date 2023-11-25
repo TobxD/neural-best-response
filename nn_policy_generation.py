@@ -72,7 +72,7 @@ def train_networks(game, player, num_networks, mlp_config, train_config, output_
         network = create_policy_net(game, mlp_config)
         train_random_nn_policy(game, player, network, train_config)
         torch.save(
-            network.state_dict(), os.path.join(output_folder, f"{num_pickles + i}.pkl")
+            network.state_dict(), os.path.join(output_folder, f"{num_pickles + i:06d}.pkl")
         )
         res.append(network)
     return res
