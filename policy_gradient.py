@@ -324,7 +324,7 @@ class PolicyGradientHypernetTrainer:
         combined_policy = main.combine_tabular_policies(self.game, *policies)
         nn_pure_br_value = main.policy_value(self.game, combined_policy)
         print(
-            "value of hypernet br policy", nn_pure_br_value
+            "value of pure br policy", nn_pure_br_value
         )
         return table_br_value[hypernet_player], nn_br_value[hypernet_player], nn_pure_br_value[hypernet_player]
 
@@ -394,16 +394,35 @@ class PolicyGradientHypernetTrainer:
             """store the eval file with cur time"""
             if not os.path.exists('trajectory'):
                 os.makedirs('trajectory')
-            with open(filename, 'a') as file:
-                original_stdout = sys.stdout
-                sys.stdout = file
-                print('episode', episode)
-                self.eval_network(
-                    input_networks[np.random.randint(len(input_networks))],
-                    self.policy_network,
-                    br_player_id
-                )
-                sys.stdout = original_stdout
+            if episode % 275 == 0:
+                total_true, total_nn, total_pure = 0, 0, 0
+                input_network_count = len(input_networks)
+
+                with open(filename, 'a') as file:
+                    original_stdout = sys.stdout
+                    sys.stdout = file
+                    
+                    print('episode', episode)
+                    for input_network in input_networks:
+                        sys.stdout = None
+                        t,n,p = self.eval_network(
+                            input_network,
+                            self.policy_network,
+                            br_player_id
+                        )
+                        total_true += t
+                        total_nn += n
+                        total_pure += p
+                        
+                    sys.stdout = file
+                    print('average true value',total_true/input_network_count)
+                    print('average nn value',total_nn/input_network_count)
+                    print('average pure value',total_pure/input_network_count)
+
+
+                    sys.stdout = original_stdout
+
+
             continue
             
     def train_best_response_q_baseline(self, opponent_config, br_player_id):
@@ -479,15 +498,31 @@ class PolicyGradientHypernetTrainer:
             """store the eval file with cur time"""
             if not os.path.exists('trajectory'):
                 os.makedirs('trajectory')
-            with open(filename, 'a') as file:
-                original_stdout = sys.stdout
-                sys.stdout = file
-                print('episode', episode)
-                self.eval_network(
-                    input_networks[np.random.randint(len(input_networks))],
-                    self.policy_network,
-                    br_player_id
-                )
+            if episode % 275 == 0:
+                total_true, total_nn, total_pure = 0, 0, 0
+                input_network_count = len(input_networks)
+
+                with open(filename, 'a') as file:
+                    original_stdout = sys.stdout
+                    sys.stdout = file
+                    print('episode', episode)
+
+                    sys.stdout = None
+                    for input_network in input_networks:
+                        t,n,p = self.eval_network(
+                            input_network,
+                            self.policy_network,
+                            br_player_id
+                        )
+                        total_true += t
+                        total_nn += n
+                        total_pure += p
+                        
+                    sys.stdout = file
+                    print('average true value',total_true/input_network_count)
+                    print('average nn value',total_nn/input_network_count)
+                    print('average pure value',total_pure/input_network_count)
+
                 sys.stdout = original_stdout
             continue
 
