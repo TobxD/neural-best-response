@@ -1,0 +1,400 @@
+episode 0
+average true value 0.4806671050517861
+average nn value -0.22919341841238572
+average pure value -0.23234858136322104
+episode 1000
+average true value 0.4806671050517861
+average nn value 0.35807907114715176
+average pure value 0.41341949670425976
+episode 2000
+average true value 0.4806671050517861
+average nn value 0.3815823809245657
+average pure value 0.4227260769868885
+episode 3000
+average true value 0.4806671050517861
+average nn value 0.39090964692628355
+average pure value 0.4227260769868885
+episode 4000
+average true value 0.4806671050517861
+average nn value 0.38507048944018596
+average pure value 0.4227260769868885
+episode 5000
+average true value 0.4806671050517861
+average nn value 0.3712671237916827
+average pure value 0.4204683800863946
+episode 6000
+average true value 0.4806671050517861
+average nn value 0.39223923074316497
+average pure value 0.4227260769868885
+episode 7000
+average true value 0.4806671050517861
+average nn value 0.39720379970048164
+average pure value 0.4227260769868885
+episode 8000
+average true value 0.4806671050517861
+average nn value 0.3884705469299153
+average pure value 0.4227260769868885
+episode 9000
+average true value 0.4806671050517861
+average nn value 0.39114000693203443
+average pure value 0.4227260769868885
+episode 10000
+average true value 0.4806671050517861
+average nn value 0.3825284708086422
+average pure value 0.4227260769868885
+episode 11000
+average true value 0.4806671050517861
+average nn value 0.3899058159960352
+average pure value 0.4230745569135268
+episode 12000
+average true value 0.4806671050517861
+average nn value 0.390417429275283
+average pure value 0.42629149061140487
+episode 13000
+average true value 0.4806671050517861
+average nn value 0.3931388389566106
+average pure value 0.42705565122368994
+episode 14000
+average true value 0.4806671050517861
+average nn value 0.39470665341512007
+average pure value 0.42514692822779726
+episode 15000
+average true value 0.4806671050517861
+average nn value 0.373432793306354
+average pure value 0.4227260769868885
+episode 16000
+average true value 0.4806671050517861
+average nn value 0.4016745671074486
+average pure value 0.4261732139345619
+episode 17000
+average true value 0.4806671050517861
+average nn value 0.4001249926248101
+average pure value 0.4259569095197592
+episode 18000
+average true value 0.4806671050517861
+average nn value 0.40342473158971554
+average pure value 0.42760607504150483
+episode 19000
+average true value 0.4806671050517861
+average nn value 0.4057979349254308
+average pure value 0.42553710576582643
+episode 20000
+average true value 0.4806671050517861
+average nn value 0.3990076346573672
+average pure value 0.4284100614897821
+episode 21000
+average true value 0.4806671050517861
+average nn value 0.40434902698697006
+average pure value 0.4282074818728234
+episode 22000
+average true value 0.4806671050517861
+average nn value 0.4000205374496369
+average pure value 0.4319535819943846
+episode 23000
+average true value 0.4806671050517861
+average nn value 0.40476307693221425
+average pure value 0.4301476085951964
+episode 24000
+average true value 0.4806671050517861
+average nn value 0.4074652436569136
+average pure value 0.42951965878649945
+episode 25000
+average true value 0.4806671050517861
+average nn value 0.40075352188240077
+average pure value 0.43344606730250934
+episode 26000
+average true value 0.4806671050517861
+average nn value 0.4015818893341638
+average pure value 0.4308488164592897
+episode 27000
+average true value 0.4806671050517861
+average nn value 0.4040470355001189
+average pure value 0.429085077519471
+episode 28000
+average true value 0.4806671050517861
+average nn value 0.3997150045316582
+average pure value 0.4296583088606634
+episode 29000
+average true value 0.4806671050517861
+average nn value 0.39847865594909043
+average pure value 0.43130902715792574
+episode 30000
+average true value 0.4806671050517861
+average nn value 0.39983355241612967
+average pure value 0.42869015510530667
+episode 31000
+average true value 0.4806671050517861
+average nn value 0.40733599539395365
+average pure value 0.43074507332144396
+episode 32000
+average true value 0.4806671050517861
+average nn value 0.40631328265881334
+average pure value 0.43012426170160956
+episode 33000
+average true value 0.4806671050517861
+average nn value 0.40568831642703973
+average pure value 0.4296292698864223
+episode 34000
+average true value 0.4806671050517861
+average nn value 0.40508534661745815
+average pure value 0.43131015322806476
+episode 35000
+average true value 0.4806671050517861
+average nn value 0.4057170203330121
+average pure value 0.43356416996958763
+episode 36000
+average true value 0.4806671050517861
+average nn value 0.40664968219104597
+average pure value 0.4311455626847405
+episode 37000
+average true value 0.4806671050517861
+average nn value 0.4052761891093057
+average pure value 0.43032919633892786
+episode 38000
+average true value 0.4806671050517861
+average nn value 0.40784491895274244
+average pure value 0.4322017557378964
+episode 39000
+average true value 0.4806671050517861
+average nn value 0.40743011137294993
+average pure value 0.4288392868370898
+episode 40000
+average true value 0.4806671050517861
+average nn value 0.4065760489813575
+average pure value 0.4328714245881628
+episode 41000
+average true value 0.4806671050517861
+average nn value 0.40603542073365884
+average pure value 0.4303600990029376
+episode 42000
+average true value 0.4806671050517861
+average nn value 0.4056759112787405
+average pure value 0.42823313928592377
+episode 43000
+average true value 0.4806671050517861
+average nn value 0.40283146945810794
+average pure value 0.4324892025829501
+episode 44000
+average true value 0.4806671050517861
+average nn value 0.40747492574207234
+average pure value 0.4311579457313633
+episode 45000
+average true value 0.4806671050517861
+average nn value 0.40842630305446576
+average pure value 0.4334836568369497
+episode 46000
+average true value 0.4806671050517861
+average nn value 0.40883646911795063
+average pure value 0.4318908077891015
+episode 47000
+average true value 0.4806671050517861
+average nn value 0.4098096370745838
+average pure value 0.42986570974911864
+episode 48000
+average true value 0.4806671050517861
+average nn value 0.4074460056178412
+average pure value 0.4341676253931225
+episode 49000
+average true value 0.4806671050517861
+average nn value 0.40836887951819706
+average pure value 0.43190504389477963
+episode 50000
+average true value 0.4806671050517861
+average nn value 0.4059932780479178
+average pure value 0.43219135803981656
+episode 51000
+average true value 0.4806671050517861
+average nn value 0.40756219857204723
+average pure value 0.43207336108216465
+episode 52000
+average true value 0.4806671050517861
+average nn value 0.4100633614541487
+average pure value 0.4323555586743343
+episode 53000
+average true value 0.4806671050517861
+average nn value 0.40831048181835916
+average pure value 0.43111179714664355
+episode 54000
+average true value 0.4806671050517861
+average nn value 0.4082881522014977
+average pure value 0.43333604820366667
+episode 55000
+average true value 0.4806671050517861
+average nn value 0.4081135204909985
+average pure value 0.43009715831015094
+episode 56000
+average true value 0.4806671050517861
+average nn value 0.4090416873189241
+average pure value 0.43051742234760987
+episode 57000
+average true value 0.4806671050517861
+average nn value 0.4103965940813085
+average pure value 0.43193754286515795
+episode 58000
+average true value 0.4806671050517861
+average nn value 0.4094416343027678
+average pure value 0.4312298241942932
+episode 59000
+average true value 0.4806671050517861
+average nn value 0.4095905668944577
+average pure value 0.4331027498465265
+episode 60000
+average true value 0.4806671050517861
+average nn value 0.4103821257364127
+average pure value 0.4319528629254962
+episode 61000
+average true value 0.4806671050517861
+average nn value 0.4105533312852225
+average pure value 0.43253346490364614
+episode 62000
+average true value 0.4806671050517861
+average nn value 0.41103957189245816
+average pure value 0.4334067930712319
+episode 63000
+average true value 0.4806671050517861
+average nn value 0.40854559110749955
+average pure value 0.4335969574023505
+episode 64000
+average true value 0.4806671050517861
+average nn value 0.4101236565010836
+average pure value 0.43446892321528807
+episode 65000
+average true value 0.4806671050517861
+average nn value 0.4114222173573624
+average pure value 0.43112437914103097
+episode 66000
+average true value 0.4806671050517861
+average nn value 0.41050148298595024
+average pure value 0.4326354568849937
+episode 67000
+average true value 0.4806671050517861
+average nn value 0.41075826280595623
+average pure value 0.43299691410232827
+episode 68000
+average true value 0.4806671050517861
+average nn value 0.4110497078771971
+average pure value 0.4337355050424452
+episode 69000
+average true value 0.4806671050517861
+average nn value 0.4103285835024764
+average pure value 0.4330058020691181
+episode 70000
+average true value 0.4806671050517861
+average nn value 0.41020795829195605
+average pure value 0.4330176752822793
+episode 71000
+average true value 0.4806671050517861
+average nn value 0.4091492041784701
+average pure value 0.4333178429570447
+episode 72000
+average true value 0.4806671050517861
+average nn value 0.4091891606350724
+average pure value 0.4326127968741793
+episode 73000
+average true value 0.4806671050517861
+average nn value 0.40969234160737794
+average pure value 0.4338961689775097
+episode 74000
+average true value 0.4806671050517861
+average nn value 0.4096709670128818
+average pure value 0.4323710852650594
+episode 75000
+average true value 0.4806671050517861
+average nn value 0.4106888773727503
+average pure value 0.4324972985887253
+episode 76000
+average true value 0.4806671050517861
+average nn value 0.41099192394389633
+average pure value 0.43295374667766134
+episode 77000
+average true value 0.4806671050517861
+average nn value 0.41091315826909064
+average pure value 0.43422616179323964
+episode 78000
+average true value 0.4806671050517861
+average nn value 0.41083755694243423
+average pure value 0.4335746819145137
+episode 79000
+average true value 0.4806671050517861
+average nn value 0.4111988266284132
+average pure value 0.4338055137091673
+episode 80000
+average true value 0.4806671050517861
+average nn value 0.41161987773446396
+average pure value 0.43256280113552875
+episode 81000
+average true value 0.4806671050517861
+average nn value 0.4110620463725107
+average pure value 0.43309060264075794
+episode 82000
+average true value 0.4806671050517861
+average nn value 0.4104902033254268
+average pure value 0.43267604091712936
+episode 83000
+average true value 0.4806671050517861
+average nn value 0.4102712186530104
+average pure value 0.4318470412643588
+episode 84000
+average true value 0.4806671050517861
+average nn value 0.4105215507668342
+average pure value 0.43296172194260474
+episode 85000
+average true value 0.4806671050517861
+average nn value 0.410437735654126
+average pure value 0.43405232331452914
+episode 86000
+average true value 0.4806671050517861
+average nn value 0.4106410346605597
+average pure value 0.4333042155879525
+episode 87000
+average true value 0.4806671050517861
+average nn value 0.41056210162051743
+average pure value 0.4324538881653296
+episode 88000
+average true value 0.4806671050517861
+average nn value 0.4105548348089867
+average pure value 0.4333042155879525
+episode 89000
+average true value 0.4806671050517861
+average nn value 0.4100403043593069
+average pure value 0.4335072590949438
+episode 90000
+average true value 0.4806671050517861
+average nn value 0.4103421952287743
+average pure value 0.4340441765042658
+episode 91000
+average true value 0.4806671050517861
+average nn value 0.4107979495162865
+average pure value 0.43331869006878987
+episode 92000
+average true value 0.4806671050517861
+average nn value 0.4105798752075683
+average pure value 0.4347081727705137
+episode 93000
+average true value 0.4806671050517861
+average nn value 0.41032778450102214
+average pure value 0.43434564675484705
+episode 94000
+average true value 0.4806671050517861
+average nn value 0.4103010288586904
+average pure value 0.433366756209435
+episode 95000
+average true value 0.4806671050517861
+average nn value 0.411230292585464
+average pure value 0.432795672048915
+episode 96000
+average true value 0.4806671050517861
+average nn value 0.41020665396630934
+average pure value 0.433345924606756
+episode 97000
+average true value 0.4806671050517861
+average nn value 0.4106550061927011
+average pure value 0.43401863569455573
+episode 98000
+average true value 0.4806671050517861
+average nn value 0.4107779051326263
+average pure value 0.4342891020211169
+episode 99000
+average true value 0.4806671050517861
+average nn value 0.4105109917167274
+average pure value 0.4344453083242837
