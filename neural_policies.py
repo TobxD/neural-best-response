@@ -67,8 +67,13 @@ class HyperNetworkActionOutput(nn.Module):
 
     def forward(self, model, x):
         x = 2 * x - 1
-        model_weights = model.get_weights()
-        if len(model_weights.shape) < len(x.shape):
+        if not isinstance(model, list):
+            model = [model]
+        model_weights = [m.get_weights() for m in model]
+        model_weights = torch.stack(model_weights, dim=0)
+        if len(model_weights.shape) > len(x.shape):
+            model_weights = model_weights.squeeze(0)
+        elif model_weights.shape[0] < x.shape[0]:
             model_weights = model_weights.repeat(x.shape[0], 1)
         x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
         return self._model(x)
@@ -139,6 +144,21 @@ def get_nn_probs(nn_policy, state, player):
     action_probabilities = F.softmax(logits, dim=-1)
     return action_probabilities
 
+def get_hypernet_output(
+    hypernet,
+    input_net,
+    state,
+    player,
+    information_state_tensor=None,
+):
+    if information_state_tensor is None:
+        if isinstance(state, list):
+            information_state_tensor = [s.information_state_tensor(player) for s in state]
+        else:
+            information_state_tensor = state.information_state_tensor(player)
+    information_state_tensor = torch.FloatTensor(information_state_tensor)
+    res = hypernet(input_net, information_state_tensor)
+    return res
 
 def get_hypernet_probs(
     hypernet,
@@ -149,12 +169,6 @@ def get_hypernet_probs(
     legal_actions_mask=None,
     softmax_temp=1,
 ):
-    if information_state_tensor is None:
-        if isinstance(state, list):
-            information_state_tensor = [s.information_state_tensor(player) for s in state]
-        else:
-            information_state_tensor = state.information_state_tensor(player)
-    information_state_tensor = torch.FloatTensor(information_state_tensor)
     if legal_actions_mask is None:
         if isinstance(state, list):
             legal_actions_mask = [
@@ -162,7 +176,13 @@ def get_hypernet_probs(
             ]
         else:
             legal_actions_mask = state.legal_actions_mask(player)
-    logits = hypernet(input_net, information_state_tensor)
+    logits = get_hypernet_output(
+        hypernet,
+        input_net,
+        state,
+        player,
+        information_state_tensor,
+    )
     mask = torch.BoolTensor(legal_actions_mask)
     logits = logits.masked_fill(~mask, float("-inf"))
     logits *= 1/softmax_temp

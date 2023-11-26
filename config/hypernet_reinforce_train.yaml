@@ -4,9 +4,19 @@ num_episodes: 100000
 # epsilon: 0.2
 epsilon: 1.0
 input_net_folder: "../nn_inputs/kuhn"
+# input_net_folder: "../nn_inputs/kuhn-1"
 # input_net_folder: "../nn_inputs/kuhn-0-big"
 # input_net_folder: "../nn_inputs/rps"
+
+# parameters for learning with q-baseline and experience buffer
+replay_buffer_size: 100000
+train_every: 1
+batch_size: 128
+
+q_net_config: ../config/hypernet.yaml
+q_learning_rate: 0.00003
+q_weight_decay: 0
 # replay_buffer_size: 2000
-replay_buffer_size: 5000
-train_every: 10
-batch_size: 32
+q_replay_buffer_size: 100000
+q_train_every: 5
+q_batch_size: 32

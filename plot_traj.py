@@ -50,4 +50,7 @@ def plot_traj_values(filename):
 
 if __name__=='__main__':
     file_time = '20231125_132152'
-    plot_traj_values(f'trajectory/evaluation_log_{file_time}.txt')
+    # plot_traj_values(f'trajectory/evaluation_log_{file_time}.txt')
+    # plot_traj_values('notebooks/trajectory/evaluation_log_20231125_183131.txt')
+    # plot_traj_values('notebooks/trajectory/evaluation_log_20231125_190744.txt')
+    plot_traj_values('notebooks/trajectory/evaluation_log_20231125_212453.txt')

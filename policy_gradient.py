@@ -9,7 +9,9 @@ from datetime import datetime
 import sys
 import os
 
-from neural_policies import create_policy_net, get_hypernet_probs, get_nn_probs
+import yaml
+
+from neural_policies import create_hypernet_actionoutput, create_policy_net, get_hypernet_output, get_hypernet_probs, get_nn_probs
 import neural_policies
 from input_net_data import read_all_nn
 from open_spiel.python.utils.replay_buffer import ReplayBuffer
@@ -81,7 +83,7 @@ class PolicyGradientTrainer:
 
 
 class PolicyGradientHypernetTrainer:
-    def __init__(self, game, policy_network, train_params):
+    def __init__(self, game, policy_network, train_params, input_net):
         self.game = game
         self.policy_network = policy_network
         self.optimizer = optim.Adam(
@@ -92,6 +94,14 @@ class PolicyGradientHypernetTrainer:
         self.num_episodes = train_params["num_episodes"]
         self.epsilon = train_params["epsilon"]
         self.train_params = train_params
+
+        q_net_config = yaml.safe_load(open(train_params['q_net_config'], "r"))
+        self.q_network = create_hypernet_actionoutput(game, input_net, q_net_config)
+        self.q_optim = optim.Adam(
+            self.q_network.parameters(),
+            lr=train_params["q_learning_rate"],
+            weight_decay=train_params["q_weight_decay"],
+        )
 
     def epsilon_random(self, probs, state, cur_player):
         uniform = torch.tensor(state.legal_actions_mask(cur_player))
@@ -308,7 +318,6 @@ class PolicyGradientHypernetTrainer:
             else:
                 pure_strat.action_probability_array[i][0] = 0
             pure_strat.action_probability_array[i][1] = 1 - pure_strat.action_probability_array[i][0]
-        # print(pure_strat.action_probability_array)
         policies = (
             [opponent_tab, pure_strat] if opponent_player == 0 else [pure_strat, opponent_tab]
         )
@@ -326,7 +335,6 @@ class PolicyGradientHypernetTrainer:
         loss_per_action = defaultdict(lambda : [[], []])
         filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
         for episode in tqdm(range(self.num_episodes)):
-            # opponent_network = create_policy_net(self.game, opponent_config)
             input_net_ind = np.random.randint(len(input_networks))
             opponent_network = input_networks[input_net_ind]
             networks = (
@@ -349,14 +357,9 @@ class PolicyGradientHypernetTrainer:
                 loss_per_action[dict_key][experiences['actions'][e]].append(experiences['rewards'][e])
                 exp_per_state[dict_key][experiences['actions'][e]].append((experiences['log_probs'][e], experiences['rewards'][e]))
 
-            # out_weights = self.policy_network.model_weight_output(opponent_network)
-            # weight_norm = torch.linalg.norm(out_weights, ord=1) * 1e-1
-            # loss += weight_norm
-            # for s, p in loss_per_action.items():
-            #     print(s, p[0], p[1])
-
             loss = 0
-            for s in exp_per_state:
+            states = list(exp_per_state.keys())
+            for s in states:
                 avg_r0 = sum(x[1] for x in exp_per_state[s][0]) / max(1, len(exp_per_state[s][0]))
                 avg_r1 = sum(x[1] for x in exp_per_state[s][1]) / max(1, len(exp_per_state[s][1]))
                 # avg_r0 = sum(loss_per_action[s][0]) / max(1, len(loss_per_action[s][0]))
@@ -377,9 +380,8 @@ class PolicyGradientHypernetTrainer:
 
             self.optimizer.zero_grad()
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=3.0)
             self.optimizer.step()
-            
+
 
             """store the eval file with cur time"""
             if not os.path.exists('trajectory'):
@@ -396,7 +398,90 @@ class PolicyGradientHypernetTrainer:
                 sys.stdout = original_stdout
             continue
             
-            
+    def train_best_response_q_baseline(self, opponent_config, br_player_id):
+        # buffer for q-network training, saving (opponent net index, state, legal actions, action, reward)
+        q_replay_buffer = ReplayBuffer(self.train_params["q_replay_buffer_size"])
+        # buffer for policy network training
+        policy_replay_buffer = ReplayBuffer(self.train_params["replay_buffer_size"])
+
+        input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
+        input_networks = input_networks[:4500]
+        baseline = defaultdict(lambda: (0, 0))
+        loss_per_action = defaultdict(lambda : [[], []])
+        filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+        for episode in tqdm(range(self.num_episodes)):
+            input_net_ind = np.random.randint(len(input_networks))
+            opponent_network = input_networks[input_net_ind]
+            networks = (
+                [self.policy_network, opponent_network]
+                if br_player_id == 0
+                else [
+                    opponent_network,
+                    self.policy_network,
+                ]
+            )
+
+            num_episodes_batch = 20
+            exp_per_state = defaultdict(lambda : [[], []])
+            experiences = self.run_k_episodes(self.game, networks, br_player_id, num_episodes_batch)
+            for e in range(len(experiences['rewards'])):
+                dict_key = tuple(experiences["info_states"][e])
+                base = baseline[dict_key]
+                base = (base[0] + experiences['rewards'][e], base[1] + 1)
+                baseline[dict_key] = base
+                loss_per_action[dict_key][experiences['actions'][e]].append(experiences['rewards'][e])
+                exp_per_state[dict_key][experiences['actions'][e]].append((experiences['log_probs'][e], experiences['rewards'][e]))
+
+                q_replay_buffer.add((input_net_ind, experiences["info_states"][e], experiences["legal_actions"][e], experiences["actions"][e], experiences["rewards"][e]))
+                policy_replay_buffer.add((input_net_ind, experiences["info_states"][e], experiences["legal_actions"][e], experiences["actions"][e], experiences["rewards"][e], experiences["log_probs"][e]))
+
+            if episode % self.train_params["train_every"] == 0 and len(q_replay_buffer) >= self.train_params['batch_size']:
+                loss = 0
+                batch = policy_replay_buffer.sample(self.train_params['batch_size'])
+                input_nets, states, action_masks, actions, rewards, log_probs = map(list, zip(*batch))
+                input_nets = [input_networks[i] for i in input_nets]
+                rewards = torch.tensor(rewards)
+
+                q_vals = get_hypernet_output(self.q_network, input_nets, None, br_player_id, information_state_tensor=states).detach()
+                base = q_vals.mean(dim=-1)
+                # base = q_vals.min(dim=-1).values
+                probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks)
+                probs = probs[[i for i in range(len(actions))], actions]
+                loss = -torch.log(probs) * torch.clip(rewards - base, -1e-9, torch.inf)
+                # loss = -torch.log(probs) * (rewards - base)
+                loss = loss.mean()
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+            if episode % self.train_params["q_train_every"] == 0 and len(q_replay_buffer) >= self.train_params['q_batch_size']:
+                batch = q_replay_buffer.sample(self.train_params['q_batch_size'])
+                in_nets, states, _, actions, rewards = map(list, zip(*batch))
+                in_nets = [input_networks[i] for i in in_nets]
+                output_values = get_hypernet_output(self.q_network, in_nets, None, br_player_id, information_state_tensor=states)
+                q_loss = 0
+                for i in range(len(batch)):
+                    q_loss += (output_values[i][actions[i]] - rewards[i]) ** 2
+                q_loss /= len(batch)
+                self.q_optim.zero_grad()
+                q_loss.backward()
+                self.q_optim.step()
+
+            """store the eval file with cur time"""
+            if not os.path.exists('trajectory'):
+                os.makedirs('trajectory')
+            with open(filename, 'a') as file:
+                original_stdout = sys.stdout
+                sys.stdout = file
+                print('episode', episode)
+                self.eval_network(
+                    input_networks[np.random.randint(len(input_networks))],
+                    self.policy_network,
+                    br_player_id
+                )
+                sys.stdout = original_stdout
+            continue
 
     def train_simultaneous_br(self, opponent_config):
         replay_buffer = [
