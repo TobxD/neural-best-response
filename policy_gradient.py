@@ -329,6 +329,13 @@ class PolicyGradientHypernetTrainer:
         return table_br_value[hypernet_player], nn_br_value[hypernet_player], nn_pure_br_value[hypernet_player]
 
     def train_best_response(self, opponent_config, br_player_id):
+        def lr_lambda(current_step):
+            for step, lr_change in zip(self.train_params["lr_decay_steps"], self.train_params["lr_decay_factors"]):
+                if current_step < step:
+                    return 1/lr_change
+            return 1/self.train_params["lr_decay_factors"][-1]
+        scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lr_lambda)
+
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
         input_networks = input_networks[:4500]
         baseline = defaultdict(lambda: (0, 0))
@@ -381,6 +388,7 @@ class PolicyGradientHypernetTrainer:
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            scheduler.step()
 
 
             """store the eval file with cur time"""
