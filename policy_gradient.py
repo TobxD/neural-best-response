@@ -337,10 +337,16 @@ class PolicyGradientHypernetTrainer:
         scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lr_lambda)
 
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
+        eval_networks = input_networks[4500:]
         input_networks = input_networks[:4500]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
-        filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+        cur_time = datetime.now().strftime("%Y%m%d_%H%M")
+        if not os.path.exists(f'trajectory/{cur_time}'):
+                os.makedirs(f'trajectory/{cur_time}')
+        with open(f'trajectory/{cur_time}/train_config.yaml', 'w') as file:
+            yaml.dump(self.train_params, file)
+        
         for episode in tqdm(range(self.num_episodes)):
             input_net_ind = np.random.randint(len(input_networks))
             opponent_network = input_networks[input_net_ind]
@@ -390,11 +396,11 @@ class PolicyGradientHypernetTrainer:
             self.optimizer.step()
             scheduler.step()
 
-
-            """store the eval file with cur time"""
-            if not os.path.exists('trajectory'):
-                os.makedirs('trajectory')
-            if episode % 275 == 0:
+            filename = f'trajectory/{cur_time}/train_evaluation_log.txt'
+            filename2 = f'trajectory/{cur_time}/eval_evaluation_log.txt'
+    
+            """eval training"""
+            if episode % 1000 == 0:
                 total_true, total_nn, total_pure = 0, 0, 0
                 input_network_count = len(input_networks)
 
@@ -418,10 +424,34 @@ class PolicyGradientHypernetTrainer:
                     print('average true value',total_true/input_network_count)
                     print('average nn value',total_nn/input_network_count)
                     print('average pure value',total_pure/input_network_count)
-
-
                     sys.stdout = original_stdout
 
+                """eval test"""
+                if episode % 500 == 0:
+                    total_true, total_nn, total_pure = 0, 0, 0
+                    input_network_count = len(eval_networks)
+
+                    with open(filename2, 'a') as file:
+                        original_stdout = sys.stdout
+                        sys.stdout = file
+                        
+                        print('episode', episode)
+                        for input_network in eval_networks:
+                            sys.stdout = None
+                            t,n,p = self.eval_network(
+                                input_network,
+                                self.policy_network,
+                                br_player_id
+                            )
+                            total_true += t
+                            total_nn += n
+                            total_pure += p
+                            
+                        sys.stdout = file
+                        print('average true value',total_true/input_network_count)
+                        print('average nn value',total_nn/input_network_count)
+                        print('average pure value',total_pure/input_network_count)
+                        sys.stdout = original_stdout
 
             continue
             
@@ -496,6 +526,36 @@ class PolicyGradientHypernetTrainer:
                 self.q_optim.step()
 
             """store the eval file with cur time"""
+            if not os.path.exists('trajectory'):
+                os.makedirs('trajectory')
+            if episode % 275 == 0:
+                total_true, total_nn, total_pure = 0, 0, 0
+                input_network_count = len(input_networks)
+
+                with open(filename, 'a') as file:
+                    original_stdout = sys.stdout
+                    sys.stdout = file
+                    print('episode', episode)
+
+                    sys.stdout = None
+                    for input_network in input_networks:
+                        t,n,p = self.eval_network(
+                            input_network,
+                            self.policy_network,
+                            br_player_id
+                        )
+                        total_true += t
+                        total_nn += n
+                        total_pure += p
+                        
+                    sys.stdout = file
+                    print('average true value',total_true/input_network_count)
+                    print('average nn value',total_nn/input_network_count)
+                    print('average pure value',total_pure/input_network_count)
+
+                sys.stdout = original_stdout
+
+
             if not os.path.exists('trajectory'):
                 os.makedirs('trajectory')
             if episode % 275 == 0:
