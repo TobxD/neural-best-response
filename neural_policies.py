@@ -137,9 +137,19 @@ def create_hypernet_nn_output(game, input_net, config, output_net=None):
 
 
 def get_nn_probs(nn_policy, state, player):
-    information_state_tensor = torch.FloatTensor(state.information_state_tensor(player))
+    if isinstance(state, list):
+        information_state_tensor = torch.FloatTensor([
+            s.information_state_tensor(player) for s in state
+        ])
+    else:
+        information_state_tensor = torch.FloatTensor(state.information_state_tensor(player))
     logits = nn_policy(information_state_tensor)
-    mask = torch.BoolTensor(state.legal_actions_mask(player))
+    if isinstance(state, list):
+        mask = torch.BoolTensor([
+            s.legal_actions_mask(player) for s in state
+        ])
+    else:
+        mask = torch.BoolTensor(state.legal_actions_mask(player))
     logits = logits.masked_fill(~mask, float("-inf"))
     action_probabilities = F.softmax(logits, dim=-1)
     return action_probabilities
@@ -193,24 +203,28 @@ def get_hypernet_probs(
 def nn_to_tabular_policy(game, nn_policy, player, input_net=None):
     tabular_policy = policy_module.TabularPolicy(game)
     info_sets_covered = set()
+    unique_states = []
     for state in all_game_states(game, player):
         info_set_str = state.information_state_string(player)
         if info_set_str in info_sets_covered:
             continue
         info_sets_covered.add(info_set_str)
+        unique_states.append(state)
 
-        if (
-            type(nn_policy) == HyperNetworkActionOutput
-            or type(nn_policy) == HyperNetworkNNOutput
-        ):
-            action_probabilities = (
-                get_hypernet_probs(nn_policy, input_net, state, player).detach().numpy()
-            )
-        else:
-            action_probabilities = (
-                get_nn_probs(nn_policy, state, player).detach().numpy()
-            )
+    if (
+        type(nn_policy) == HyperNetworkActionOutput
+        or type(nn_policy) == HyperNetworkNNOutput
+    ):
+        action_probabilities = (
+            get_hypernet_probs(nn_policy, input_net, unique_states, player).detach().numpy()
+        )
+    else:
+        action_probabilities = (
+            get_nn_probs(nn_policy, unique_states, player).detach().numpy()
+        )
 
-        for action, prob in enumerate(action_probabilities):
+    for si, state in enumerate(unique_states):
+        info_set_str = state.information_state_string(player)
+        for action, prob in enumerate(action_probabilities[si]):
             tabular_policy.policy_for_key(info_set_str)[action] = prob
     return tabular_policy
