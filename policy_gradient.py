@@ -500,7 +500,6 @@ class PolicyGradientHypernetTrainer:
 
             if episode % self.train_params["train_every"] == 0 and len(q_replay_buffer) >= self.train_params['batch_size']:
                 for _ in range(self.train_params['num_train_steps']):
-                    start_time = datetime.now()
                     loss = 0
                     batch = policy_replay_buffer.sample(self.train_params['batch_size'])
                     input_nets, states, action_masks, actions, rewards, log_probs = map(list, zip(*batch))
@@ -508,15 +507,11 @@ class PolicyGradientHypernetTrainer:
                     input_nets = [input_networks[i] for i in input_nets]
                     rewards = torch.tensor(rewards, device=self.device)
 
-                    sampled_inputs_time = datetime.now()
-
                     # q_vals = get_hypernet_output(self.q_network, input_nets, None, br_player_id, information_state_tensor=states).detach()
                     # base = q_vals.mean(dim=-1)
                     # base = q_vals.min(dim=-1).values
                     # probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks)
                     probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks, model_weights=input_weights)
-
-                    got_probs_time = datetime.now()
 
                     entropy = -torch.log(probs) * probs
                     entropy = entropy.mean(dim=-1)
@@ -526,20 +521,9 @@ class PolicyGradientHypernetTrainer:
                     loss = -probs * rewards - self.train_params["entropy_penalty"] * entropy
                     loss = loss.mean()
 
-                    loss_time = datetime.now()
-
                     self.optimizer.zero_grad()
                     loss.backward()
-                    loss_backward_time = datetime.now()
                     self.optimizer.step()
-                    optimizer_step_time = datetime.now()
-
-                    # print("sampled inputs time", sampled_inputs_time - start_time)
-                    # print("got probs time", got_probs_time - sampled_inputs_time)
-                    # print("loss time", loss_time - got_probs_time)
-                    # print("loss backward time", loss_backward_time - loss_time)
-                    # print("optimizer step time", optimizer_step_time - loss_backward_time)
-                    # print()
 
             if episode % self.train_params["q_train_every"] == 0 and len(q_replay_buffer) >= self.train_params['q_batch_size']:
                 batch = q_replay_buffer.sample(self.train_params['q_batch_size'])

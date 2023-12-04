@@ -68,7 +68,6 @@ class HyperNetworkActionOutput(nn.Module):
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     def forward(self, model, x, model_weights=None):
-        start_inference_time = datetime.now()
         x = 2 * x - 1
         if model_weights is None:
             if not isinstance(model, list):
@@ -80,18 +79,12 @@ class HyperNetworkActionOutput(nn.Module):
         model_weights = model_weights.to(self.device)
         x = x.to(self.device)
 
-        changed_device_time = datetime.now()
-
         if len(model_weights.shape) > len(x.shape):
             model_weights = model_weights.squeeze(0)
         elif model_weights.shape[0] < x.shape[0]:
             model_weights = model_weights.repeat(x.shape[0], 1)
         x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
         res = self._model(x)
-        end_time = datetime.now()
-        # print("-- Got weights time: ", got_weights_time - start_inference_time)
-        # print("-- Changed device time: ", changed_device_time - got_weights_time)
-        # print("-- Forward time: ", end_time - changed_device_time)
         return res
 
 
@@ -184,10 +177,7 @@ def get_hypernet_output(
         else:
             information_state_tensor = state.information_state_tensor(player)
     information_state_tensor = torch.FloatTensor(information_state_tensor)
-    start_inference_time = datetime.now()
     res = hypernet(input_net, information_state_tensor, model_weights=model_weights)
-    end_inference_time = datetime.now()
-    # print("Inference time: ", end_inference_time - start_inference_time)
     return res
 
 def get_hypernet_probs(
