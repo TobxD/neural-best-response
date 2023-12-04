@@ -4,6 +4,7 @@ num_episodes: 275000
 # epsilon: 0.2
 epsilon: 1.0
 entropy_penalty: 0.3
+num_episodes_batch: 20
 input_net_folder: "../nn_inputs/kuhn"
 # input_net_folder: "../nn_inputs/kuhn-0-big"
 # input_net_folder: "../nn_inputs/rps"

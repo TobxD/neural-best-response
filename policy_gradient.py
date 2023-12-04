@@ -8,6 +8,7 @@ from pprint import pprint
 from datetime import datetime
 import sys
 import os
+import wandb
 
 import yaml
 
@@ -404,7 +405,7 @@ class PolicyGradientHypernetTrainer:
             filename2 = f'trajectory/{cur_time}/eval_evaluation_log.txt'
     
             """eval training"""
-            if episode % 1000 == 0:
+            if episode % 500 == 0:
                 total_true, total_nn, total_pure = 0, 0, 0
                 input_network_count = len(input_networks)
 
@@ -430,32 +431,32 @@ class PolicyGradientHypernetTrainer:
                     print('average pure value',total_pure/input_network_count)
                     sys.stdout = original_stdout
 
-                """eval test"""
-                if episode % 500 == 0:
-                    total_true, total_nn, total_pure = 0, 0, 0
-                    input_network_count = len(eval_networks)
+            """eval test"""
+            if episode % 500 == 0:
+                total_true, total_nn, total_pure = 0, 0, 0
+                input_network_count = len(eval_networks)
 
-                    with open(filename2, 'a') as file:
-                        original_stdout = sys.stdout
-                        sys.stdout = file
+                with open(filename2, 'a') as file:
+                    original_stdout = sys.stdout
+                    sys.stdout = file
+                    
+                    print('episode', episode)
+                    for input_network in eval_networks:
+                        sys.stdout = None
+                        t,n,p = self.eval_network(
+                            input_network,
+                            self.policy_network,
+                            br_player_id
+                        )
+                        total_true += t
+                        total_nn += n
+                        total_pure += p
                         
-                        print('episode', episode)
-                        for input_network in eval_networks:
-                            sys.stdout = None
-                            t,n,p = self.eval_network(
-                                input_network,
-                                self.policy_network,
-                                br_player_id
-                            )
-                            total_true += t
-                            total_nn += n
-                            total_pure += p
-                            
-                        sys.stdout = file
-                        print('average true value',total_true/input_network_count)
-                        print('average nn value',total_nn/input_network_count)
-                        print('average pure value',total_pure/input_network_count)
-                        sys.stdout = original_stdout
+                    sys.stdout = file
+                    print('average true value',total_true/input_network_count)
+                    print('average nn value',total_nn/input_network_count)
+                    print('average pure value',total_pure/input_network_count)
+                    sys.stdout = original_stdout
 
             continue
             
@@ -466,11 +467,15 @@ class PolicyGradientHypernetTrainer:
         policy_replay_buffer = ReplayBuffer(self.train_params["replay_buffer_size"])
 
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
+        eval_networks = input_networks[4500:]
         input_networks = input_networks[:4500]
         input_net_weights = [x.get_weights() for x in input_networks]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+        log_folder = f'trajectory/{wandb.run.name}-{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+        if not os.path.exists(log_folder):
+                os.makedirs(log_folder)
         
         for episode in tqdm(range(self.num_episodes)):
             input_net_ind = np.random.randint(len(input_networks))
@@ -484,9 +489,8 @@ class PolicyGradientHypernetTrainer:
                 ]
             )
 
-            num_episodes_batch = 20
             exp_per_state = defaultdict(lambda : [[], []])
-            experiences = self.run_k_episodes(self.game, networks, br_player_id, num_episodes_batch)
+            experiences = self.run_k_episodes(self.game, networks, br_player_id, self.train_params["num_episodes_batch"])
             for e in range(len(experiences['rewards'])):
                 dict_key = tuple(experiences["info_states"][e])
                 base = baseline[dict_key]
@@ -513,19 +517,20 @@ class PolicyGradientHypernetTrainer:
                     # probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks)
                     probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks, model_weights=input_weights)
 
-                    entropy = -torch.log(probs) * probs
-                    entropy = entropy.mean(dim=-1)
+                    entropy_loss = torch.log(probs) * probs
+                    entropy_loss = entropy_loss.mean(dim=-1).mean()
                     probs = probs[[i for i in range(len(actions))], actions]
                     # loss = -torch.log(probs) * torch.clip(rewards - base, -1e-9, torch.inf)
                     # loss = -torch.log(probs) * (rewards - base)
-                    loss = -probs * rewards - self.train_params["entropy_penalty"] * entropy
-                    loss = loss.mean()
+                    reinforce_loss = (-probs * rewards).mean()
+                    loss = reinforce_loss + self.train_params["entropy_penalty"] * entropy_loss
+                    wandb.log({"reinforce_loss": reinforce_loss.item(), "entropy_loss": entropy_loss.item(), "loss": loss.item()})
 
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
 
-            if episode % self.train_params["q_train_every"] == 0 and len(q_replay_buffer) >= self.train_params['q_batch_size']:
+            if False and episode % self.train_params["q_train_every"] == 0 and len(q_replay_buffer) >= self.train_params['q_batch_size']:
                 batch = q_replay_buffer.sample(self.train_params['q_batch_size'])
                 in_nets, states, _, actions, rewards = map(list, zip(*batch))
                 in_nets = [input_networks[i] for i in in_nets]
@@ -538,20 +543,21 @@ class PolicyGradientHypernetTrainer:
                 q_loss.backward()
                 self.q_optim.step()
 
-            """store the eval file with cur time"""
-            if not os.path.exists('trajectory'):
-                os.makedirs('trajectory')
-            if episode % 275 == 0:
+            filename = f'{log_folder}/train_evaluation_log.txt'
+            filename2 = f'{log_folder}/eval_evaluation_log.txt'
+    
+            """eval training"""
+            if episode % 500 == 0:
                 total_true, total_nn, total_pure = 0, 0, 0
                 input_network_count = len(input_networks)
 
                 with open(filename, 'a') as file:
                     original_stdout = sys.stdout
                     sys.stdout = file
-                    print('episode', episode)
 
-                    sys.stdout = None
+                    print('episode', episode)
                     for input_network in input_networks:
+                        sys.stdout = None
                         t,n,p = self.eval_network(
                             input_network,
                             self.policy_network,
@@ -565,23 +571,21 @@ class PolicyGradientHypernetTrainer:
                     print('average true value',total_true/input_network_count)
                     print('average nn value',total_nn/input_network_count)
                     print('average pure value',total_pure/input_network_count)
+                    wandb.log({"train_outer_iteration": episode, "train_true_value": total_true/input_network_count, "train_nn_value": total_nn/input_network_count, "train_pure_value": total_pure/input_network_count})
+                    sys.stdout = original_stdout
 
-                sys.stdout = original_stdout
-
-
-            if not os.path.exists('trajectory'):
-                os.makedirs('trajectory')
-            if episode % 275 == 0:
+            """eval test"""
+            if episode % 500 == 0:
                 total_true, total_nn, total_pure = 0, 0, 0
-                input_network_count = len(input_networks)
+                input_network_count = len(eval_networks)
 
-                with open(filename, 'a') as file:
+                with open(filename2, 'a') as file:
                     original_stdout = sys.stdout
                     sys.stdout = file
+                    
                     print('episode', episode)
-
-                    sys.stdout = None
-                    for input_network in input_networks:
+                    for input_network in eval_networks:
+                        sys.stdout = None
                         t,n,p = self.eval_network(
                             input_network,
                             self.policy_network,
@@ -595,8 +599,9 @@ class PolicyGradientHypernetTrainer:
                     print('average true value',total_true/input_network_count)
                     print('average nn value',total_nn/input_network_count)
                     print('average pure value',total_pure/input_network_count)
-
-                sys.stdout = original_stdout
+                    wandb.log({"eval_outer_iteration": episode, "eval_true_value": total_true/input_network_count, "eval_nn_value": total_nn/input_network_count, "eval_pure_value": total_pure/input_network_count})
+                    sys.stdout = original_stdout
+                torch.save(self.policy_network.state_dict(), f"{log_folder}/policy_network-{episode:07d}.pt")
             continue
 
     def train_simultaneous_br(self, opponent_config):
