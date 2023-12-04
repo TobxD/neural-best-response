@@ -1,17 +1,19 @@
-learning_rate: 0.0003
+learning_rate: 0.000003
 weight_decay: 0
 num_episodes: 275000
 # epsilon: 0.2
 epsilon: 1.0
-input_net_folder: "nn_inputs/kuhn"
+entropy_penalty: 0.3
+input_net_folder: "../nn_inputs/kuhn"
 # input_net_folder: "../nn_inputs/kuhn-0-big"
 # input_net_folder: "../nn_inputs/rps"
 lr_decay_steps: [15000, 30000, 50000, 65000, 80000]
 lr_decay_factors: [1, 3, 8, 20, 50, 100]
 
 # parameters for learning with q-baseline and experience buffer
-replay_buffer_size: 100000
+replay_buffer_size: 500000
 train_every: 1
+num_train_steps: 10
 batch_size: 128
 
 q_net_config: ../config/hypernet.yaml

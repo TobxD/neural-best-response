@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.nn.init as init
 from open_spiel.python import policy as policy_module
 import copy
+from datetime import datetime
 
 from game_utils import all_game_states
 
@@ -64,19 +65,34 @@ class HyperNetworkActionOutput(nn.Module):
         super(HyperNetworkActionOutput, self).__init__()
         input_dim += input_nn.num_weight_values()
         self._model = PolicyNetwork(input_dim, output_dim, **kwargs)
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-    def forward(self, model, x):
+    def forward(self, model, x, model_weights=None):
+        start_inference_time = datetime.now()
         x = 2 * x - 1
-        if not isinstance(model, list):
-            model = [model]
-        model_weights = [m.get_weights() for m in model]
+        if model_weights is None:
+            if not isinstance(model, list):
+                model = [model]
+            model_weights = [m.get_weights() for m in model]
         model_weights = torch.stack(model_weights, dim=0)
+        got_weights_time = datetime.now()
+
+        model_weights = model_weights.to(self.device)
+        x = x.to(self.device)
+
+        changed_device_time = datetime.now()
+
         if len(model_weights.shape) > len(x.shape):
             model_weights = model_weights.squeeze(0)
         elif model_weights.shape[0] < x.shape[0]:
             model_weights = model_weights.repeat(x.shape[0], 1)
         x = torch.cat([model_weights.detach(), x.detach()], dim=-1)
-        return self._model(x)
+        res = self._model(x)
+        end_time = datetime.now()
+        # print("-- Got weights time: ", got_weights_time - start_inference_time)
+        # print("-- Changed device time: ", changed_device_time - got_weights_time)
+        # print("-- Forward time: ", end_time - changed_device_time)
+        return res
 
 
 class HyperNetworkNNOutput(nn.Module):
@@ -104,7 +120,7 @@ class HyperNetworkNNOutput(nn.Module):
         out_nn.set_weights(out_nn_weights)
         return out_nn
 
-    def forward(self, in_model, x):
+    def forward(self, in_model, x, device=None):
         """
         forward pass of both the hypernetwork and the output network
         """
@@ -160,6 +176,7 @@ def get_hypernet_output(
     state,
     player,
     information_state_tensor=None,
+    model_weights=None,
 ):
     if information_state_tensor is None:
         if isinstance(state, list):
@@ -167,7 +184,10 @@ def get_hypernet_output(
         else:
             information_state_tensor = state.information_state_tensor(player)
     information_state_tensor = torch.FloatTensor(information_state_tensor)
-    res = hypernet(input_net, information_state_tensor)
+    start_inference_time = datetime.now()
+    res = hypernet(input_net, information_state_tensor, model_weights=model_weights)
+    end_inference_time = datetime.now()
+    # print("Inference time: ", end_inference_time - start_inference_time)
     return res
 
 def get_hypernet_probs(
@@ -178,6 +198,7 @@ def get_hypernet_probs(
     information_state_tensor=None,
     legal_actions_mask=None,
     softmax_temp=1,
+    model_weights=None,
 ):
     if legal_actions_mask is None:
         if isinstance(state, list):
@@ -192,8 +213,9 @@ def get_hypernet_probs(
         state,
         player,
         information_state_tensor,
+        model_weights=model_weights,
     )
-    mask = torch.BoolTensor(legal_actions_mask)
+    mask = torch.tensor(legal_actions_mask, dtype=torch.bool, device=logits.device)
     logits = logits.masked_fill(~mask, float("-inf"))
     logits *= 1/softmax_temp
     action_probabilities = F.softmax(logits, dim=-1)
@@ -216,7 +238,7 @@ def nn_to_tabular_policy(game, nn_policy, player, input_net=None):
         or type(nn_policy) == HyperNetworkNNOutput
     ):
         action_probabilities = (
-            get_hypernet_probs(nn_policy, input_net, unique_states, player).detach().numpy()
+            get_hypernet_probs(nn_policy, input_net, unique_states, player).cpu().detach().numpy()
         )
     else:
         action_probabilities = (

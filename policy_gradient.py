@@ -102,6 +102,8 @@ class PolicyGradientHypernetTrainer:
             lr=train_params["q_learning_rate"],
             weight_decay=train_params["q_weight_decay"],
         )
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.policy_network.to(self.device)
 
     def epsilon_random(self, probs, state, cur_player):
         uniform = torch.tensor(state.legal_actions_mask(cur_player))
@@ -149,7 +151,7 @@ class PolicyGradientHypernetTrainer:
                     cur_input_states,
                     br_player_id,
                     softmax_temp=softmax_temp,
-                )
+                ).cpu()
 
             curind = 0
             for episode in to_play:
@@ -237,7 +239,7 @@ class PolicyGradientHypernetTrainer:
                             networks[1 - cur_player],
                             state,
                             cur_player,
-                        )
+                        ).cpu()
                         orig_probs = probs
                         probs = self.epsilon_random(probs, state, cur_player)
                     else:
@@ -386,9 +388,11 @@ class PolicyGradientHypernetTrainer:
                     log_probs = torch.stack(log_probs).squeeze()
                     reward = torch.tensor(reward)
                     # regret matching policy gradient (RMPG)
-                    loss += (-log_probs * torch.clip(reward - base, -1e-9, torch.inf)).sum()
+                    # loss += (-torch.exp(log_probs) * torch.clip(reward - base, -1e-9, torch.inf)).sum()
                     # standard policy gradient (REINFORCE with baseline)
                     # loss += (-log_probs * (reward - base)).sum()
+                    # loss under uniform policy
+                    loss += (-torch.exp(log_probs) * (reward - base)).sum()
             loss /= num_episodes_batch
 
             self.optimizer.zero_grad()
@@ -463,9 +467,11 @@ class PolicyGradientHypernetTrainer:
 
         input_networks = read_all_nn(self.game, self.train_params["input_net_folder"])
         input_networks = input_networks[:4500]
+        input_net_weights = [x.get_weights() for x in input_networks]
         baseline = defaultdict(lambda: (0, 0))
         loss_per_action = defaultdict(lambda : [[], []])
         filename = f'trajectory/evaluation_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+        
         for episode in tqdm(range(self.num_episodes)):
             input_net_ind = np.random.randint(len(input_networks))
             opponent_network = input_networks[input_net_ind]
@@ -493,24 +499,47 @@ class PolicyGradientHypernetTrainer:
                 policy_replay_buffer.add((input_net_ind, experiences["info_states"][e], experiences["legal_actions"][e], experiences["actions"][e], experiences["rewards"][e], experiences["log_probs"][e]))
 
             if episode % self.train_params["train_every"] == 0 and len(q_replay_buffer) >= self.train_params['batch_size']:
-                loss = 0
-                batch = policy_replay_buffer.sample(self.train_params['batch_size'])
-                input_nets, states, action_masks, actions, rewards, log_probs = map(list, zip(*batch))
-                input_nets = [input_networks[i] for i in input_nets]
-                rewards = torch.tensor(rewards)
+                for _ in range(self.train_params['num_train_steps']):
+                    start_time = datetime.now()
+                    loss = 0
+                    batch = policy_replay_buffer.sample(self.train_params['batch_size'])
+                    input_nets, states, action_masks, actions, rewards, log_probs = map(list, zip(*batch))
+                    input_weights = [input_net_weights[i] for i in input_nets]
+                    input_nets = [input_networks[i] for i in input_nets]
+                    rewards = torch.tensor(rewards, device=self.device)
 
-                q_vals = get_hypernet_output(self.q_network, input_nets, None, br_player_id, information_state_tensor=states).detach()
-                base = q_vals.mean(dim=-1)
-                # base = q_vals.min(dim=-1).values
-                probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks)
-                probs = probs[[i for i in range(len(actions))], actions]
-                loss = -torch.log(probs) * torch.clip(rewards - base, -1e-9, torch.inf)
-                # loss = -torch.log(probs) * (rewards - base)
-                loss = loss.mean()
+                    sampled_inputs_time = datetime.now()
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+                    # q_vals = get_hypernet_output(self.q_network, input_nets, None, br_player_id, information_state_tensor=states).detach()
+                    # base = q_vals.mean(dim=-1)
+                    # base = q_vals.min(dim=-1).values
+                    # probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks)
+                    probs = get_hypernet_probs(self.policy_network, input_nets, None, br_player_id, information_state_tensor=states, legal_actions_mask=action_masks, model_weights=input_weights)
+
+                    got_probs_time = datetime.now()
+
+                    entropy = -torch.log(probs) * probs
+                    entropy = entropy.mean(dim=-1)
+                    probs = probs[[i for i in range(len(actions))], actions]
+                    # loss = -torch.log(probs) * torch.clip(rewards - base, -1e-9, torch.inf)
+                    # loss = -torch.log(probs) * (rewards - base)
+                    loss = -probs * rewards - self.train_params["entropy_penalty"] * entropy
+                    loss = loss.mean()
+
+                    loss_time = datetime.now()
+
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    loss_backward_time = datetime.now()
+                    self.optimizer.step()
+                    optimizer_step_time = datetime.now()
+
+                    # print("sampled inputs time", sampled_inputs_time - start_time)
+                    # print("got probs time", got_probs_time - sampled_inputs_time)
+                    # print("loss time", loss_time - got_probs_time)
+                    # print("loss backward time", loss_backward_time - loss_time)
+                    # print("optimizer step time", optimizer_step_time - loss_backward_time)
+                    # print()
 
             if episode % self.train_params["q_train_every"] == 0 and len(q_replay_buffer) >= self.train_params['q_batch_size']:
                 batch = q_replay_buffer.sample(self.train_params['q_batch_size'])
