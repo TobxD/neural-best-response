@@ -17,8 +17,12 @@ import argparse
 
 def do_work(args, game, hypernet_config, hypernet_train_config, nn_config):
     mlp = neural_policies.create_policy_net(game, nn_config)
-    # hypernet = neural_policies.create_hypernet_nn_output(game, mlp, hypernet_config)
-    hypernet = neural_policies.create_hypernet_actionoutput(game, mlp, hypernet_config)
+    if args.hypernet_concept == "nn_output":
+        hypernet = neural_policies.create_hypernet_nn_output(game, mlp, hypernet_config)
+    elif args.hypernet_concept == "action_output":
+        hypernet = neural_policies.create_hypernet_actionoutput(game, mlp, hypernet_config)
+    else:
+        raise ValueError("Invalid hypernet concept")
     trainer = PolicyGradientHypernetTrainer(game, hypernet, hypernet_train_config, mlp)
 
     # trainer.train_best_response(nn_config, 1 - nn_player)
@@ -49,6 +53,7 @@ def parse_args():
     # this is only for random games (NF)
     parser.add_argument("--num-actions", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--hypernet-concept", type=str, required=True, choices=["nn_output", "action_output"])
     return parser.parse_args()
 
 
@@ -70,6 +75,7 @@ if __name__ == "__main__":
             "hypernet_config": hypernet_config,
             "game": args.game,
             "opponent_player": args.opponent_player,
+            "hypernet_concept": args.hypernet_concept,
         }
     )
 
