@@ -69,6 +69,7 @@ if __name__ == "__main__":
             "nn_config": nn_config,
             "hypernet_config": hypernet_config,
             "game": args.game,
+            "opponent_player": args.opponent_player,
         }
     )
 

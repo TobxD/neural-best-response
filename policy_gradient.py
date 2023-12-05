@@ -125,6 +125,7 @@ class PolicyGradientHypernetTrainer:
         all_orig_probs = []
         # importance sampling ratios
         is_ratios = []
+        sample_probs = []
 
         to_play = [i for i in range(num_episodes)]
 
@@ -152,7 +153,7 @@ class PolicyGradientHypernetTrainer:
                     cur_input_states,
                     br_player_id,
                     softmax_temp=softmax_temp,
-                ).cpu()
+                ).detach().cpu()
 
             curind = 0
             for episode in to_play:
@@ -181,6 +182,7 @@ class PolicyGradientHypernetTrainer:
 
                             log_prob = torch.log(orig_probs[action])
                             log_probs.append(log_prob)
+                            sample_probs.append(probs[action])
                             is_ratios.append(orig_probs[action] / probs[action])
                             br_actions.append(action.item())
                             info_states.append(state.information_state_tensor(cur_player))
@@ -212,6 +214,7 @@ class PolicyGradientHypernetTrainer:
             "is_ratios": is_ratios,
             "orig_probs": all_orig_probs,
             "ind": ind,
+            "sample_probs": sample_probs,
         }
 
     def run_episode(self, game, networks, br_player_id):
@@ -240,7 +243,7 @@ class PolicyGradientHypernetTrainer:
                             networks[1 - cur_player],
                             state,
                             cur_player,
-                        ).cpu()
+                        ).detach().cpu()
                         orig_probs = probs
                         probs = self.epsilon_random(probs, state, cur_player)
                     else:
@@ -500,13 +503,13 @@ class PolicyGradientHypernetTrainer:
                 exp_per_state[dict_key][experiences['actions'][e]].append((experiences['log_probs'][e], experiences['rewards'][e]))
 
                 q_replay_buffer.add((input_net_ind, experiences["info_states"][e], experiences["legal_actions"][e], experiences["actions"][e], experiences["rewards"][e]))
-                policy_replay_buffer.add((input_net_ind, experiences["info_states"][e], experiences["legal_actions"][e], experiences["actions"][e], experiences["rewards"][e], experiences["log_probs"][e]))
+                policy_replay_buffer.add((input_net_ind, experiences["info_states"][e], experiences["legal_actions"][e], experiences["actions"][e], experiences["rewards"][e], experiences["log_probs"][e], experiences["sample_probs"][e]))
 
             if episode % self.train_params["train_every"] == 0 and len(q_replay_buffer) >= self.train_params['batch_size']:
                 for _ in range(self.train_params['num_train_steps']):
                     loss = 0
                     batch = policy_replay_buffer.sample(self.train_params['batch_size'])
-                    input_nets, states, action_masks, actions, rewards, log_probs = map(list, zip(*batch))
+                    input_nets, states, action_masks, actions, rewards, log_probs, sample_probs = map(list, zip(*batch))
                     input_weights = [input_net_weights[i] for i in input_nets]
                     input_nets = [input_networks[i] for i in input_nets]
                     rewards = torch.tensor(rewards, device=self.device)
@@ -520,9 +523,10 @@ class PolicyGradientHypernetTrainer:
                     entropy_loss = torch.log(probs) * probs
                     entropy_loss = entropy_loss.mean(dim=-1).mean()
                     probs = probs[[i for i in range(len(actions))], actions]
+                    sample_probs = torch.tensor(sample_probs).to(self.device)
                     # loss = -torch.log(probs) * torch.clip(rewards - base, -1e-9, torch.inf)
                     # loss = -torch.log(probs) * (rewards - base)
-                    reinforce_loss = (-probs * rewards).mean()
+                    reinforce_loss = (-probs/sample_probs.detach() * rewards).mean()
                     loss = reinforce_loss + self.train_params["entropy_penalty"] * entropy_loss
                     wandb.log({"reinforce_loss": reinforce_loss.item(), "entropy_loss": entropy_loss.item(), "loss": loss.item()})
 
@@ -547,7 +551,7 @@ class PolicyGradientHypernetTrainer:
             filename2 = f'{log_folder}/eval_evaluation_log.txt'
     
             """eval training"""
-            if episode % 500 == 0:
+            if episode % self.train_params["log_every"] == 0:
                 total_true, total_nn, total_pure = 0, 0, 0
                 input_network_count = len(input_networks)
 
@@ -575,7 +579,7 @@ class PolicyGradientHypernetTrainer:
                     sys.stdout = original_stdout
 
             """eval test"""
-            if episode % 500 == 0:
+            if episode % self.train_params["log_every"] == 0:
                 total_true, total_nn, total_pure = 0, 0, 0
                 input_network_count = len(eval_networks)
 
